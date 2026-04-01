@@ -1,4 +1,4 @@
-package io.github.ilbo18.authrbac;
+package com.ilbo18.authrbac.github.ilbo18.authrbac;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

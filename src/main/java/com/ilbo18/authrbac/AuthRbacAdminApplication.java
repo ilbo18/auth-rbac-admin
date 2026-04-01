@@ -1,4 +1,4 @@
-package io.github.ilbo18.authrbac;
+package com.ilbo18.authrbac;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
