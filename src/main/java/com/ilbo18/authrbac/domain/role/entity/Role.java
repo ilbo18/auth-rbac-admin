@@ -34,4 +34,11 @@ public class Role extends BaseEntity {
     /** 사용 여부 */
     @Column(nullable = false)
     private Boolean enabled;
+
+    /** 역할 정보 수정 */
+    public void update(String name, String description, Boolean enabled) {
+        this.name = name;
+        this.description = description;
+        this.enabled = enabled;
+    }
 }

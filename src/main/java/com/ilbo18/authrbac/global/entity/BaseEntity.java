@@ -22,7 +22,7 @@ public abstract class BaseEntity {
 
     /** 삭제 여부 */
     @Column(nullable = false)
-    private Boolean deleted = false;
+    protected Boolean deleted = false;
 
     /** 생성 일시 */
     @CreatedDate
@@ -43,4 +43,9 @@ public abstract class BaseEntity {
     @LastModifiedBy
     @Column(nullable = false, length = 50)
     private String updatedBy;
+
+    /** Entity 삭제 */
+    public void delete() {
+        this.deleted = true;
+    }
 }

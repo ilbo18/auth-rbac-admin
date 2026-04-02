@@ -9,7 +9,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * 기본 보안 정책 설정
- * */
+ */
 @Configuration
 public class SecurityConfig {
 
@@ -24,7 +24,6 @@ public class SecurityConfig {
             // 상태 확인, 로컬 DB 콘솔은 인증 없이 허용하고 나머지는 인증 필요
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health", "/h2-console/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/roles").permitAll()
                 .anyRequest().authenticated()
             )
             // 가장 단순한 기본 인증 방식 활성화
