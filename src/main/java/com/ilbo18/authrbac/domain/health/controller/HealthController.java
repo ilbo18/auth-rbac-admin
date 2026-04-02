@@ -1,4 +1,4 @@
-package com.ilbo18.authrbac.domain.health;
+package com.ilbo18.authrbac.domain.health.controller;
 
 import java.util.Map;
 
