@@ -2,6 +2,7 @@ package com.ilbo18.authrbac.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -23,6 +24,7 @@ public class SecurityConfig {
             // 상태 확인, 로컬 DB 콘솔은 인증 없이 허용하고 나머지는 인증 필요
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health", "/h2-console/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/roles").permitAll()
                 .anyRequest().authenticated()
             )
             // 가장 단순한 기본 인증 방식 활성화
