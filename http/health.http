@@ -1,0 +1,5 @@
+@baseUrl = http://localhost:8080
+
+# 헬스 체크
+GET {{baseUrl}}/api/health
+Accept: application/json
