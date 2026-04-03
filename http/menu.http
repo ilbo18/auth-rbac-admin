@@ -1,1 +1,59 @@
 @baseUrl = http://localhost:8080
+@topMenuId = 1
+@childMenuId = 2
+
+### Create top-level menu
+POST {{baseUrl}}/api/menus
+Content-Type: application/json
+
+{
+  "name": "SYSTEM",
+  "path": "/system",
+  "parentId": null,
+  "sortOrder": 1,
+  "enabled": true
+}
+
+### Create child menu
+POST {{baseUrl}}/api/menus
+Content-Type: application/json
+
+{
+  "name": "SYSTEM_MENU",
+  "path": "/system/menus",
+  "parentId": {{topMenuId}},
+  "sortOrder": 2,
+  "enabled": true
+}
+
+### Get menu list
+GET {{baseUrl}}/api/menus
+Accept: application/json
+
+### Get menu detail
+GET {{baseUrl}}/api/menus/{{childMenuId}}
+Accept: application/json
+
+### Update menu
+PUT {{baseUrl}}/api/menus/{{childMenuId}}
+Content-Type: application/json
+
+{
+  "name": "SYSTEM_MENU_UPDATED",
+  "path": "/system/menus/edit",
+  "parentId": {{topMenuId}},
+  "sortOrder": 3,
+  "enabled": true
+}
+
+### Delete menu
+DELETE {{baseUrl}}/api/menus/{{childMenuId}}
+Accept: application/json
+
+### Get list after delete
+GET {{baseUrl}}/api/menus
+Accept: application/json
+
+### Get deleted menu detail error
+GET {{baseUrl}}/api/menus/{{childMenuId}}
+Accept: application/json

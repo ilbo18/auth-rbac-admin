@@ -56,7 +56,6 @@ public class RoleServiceImpl implements RoleService {
     public void updateRole(Long id, RoleRecord.Update req) {
         Role role = Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.ROLE_NOT_FOUND));
-
         role.update(req.name(), req.description(), req.enabled());
     }
 
@@ -68,7 +67,6 @@ public class RoleServiceImpl implements RoleService {
     public void deleteRole(Long id) {
         Role role = Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(id))
                                                       .orElseThrow(() -> new CustomException(AuthErrorCode.ROLE_NOT_FOUND));
-
         role.delete();
     }
 }

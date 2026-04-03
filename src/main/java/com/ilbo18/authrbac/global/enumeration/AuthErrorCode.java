@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 /**
- * auth-rbac-admin 프로젝트 전용 에러 코드
+ * auth-rbac-admin 프로젝트 공용 에러 코드
  */
 @Getter
 @RequiredArgsConstructor
@@ -28,7 +28,14 @@ public enum AuthErrorCode implements ErrorCode {
     ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, "A4001", "역할 정보를 찾을 수 없습니다."),
     ROLE_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A4002", "이미 존재하는 역할 코드입니다."),
 
-    PERMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "A5001", "권한 정보를 찾을 수 없습니다.");
+    PERMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "A5001", "권한 정보를 찾을 수 없습니다."),
+    PERMISSION_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A5002", "이미 존재하는 권한 조합입니다."),
+    INVALID_ROLE(HttpStatus.BAD_REQUEST, "A5003", "유효하지 않은 역할입니다."),
+    INVALID_MENU(HttpStatus.BAD_REQUEST, "A5004", "유효하지 않은 메뉴입니다."),
+
+    MENU_NOT_FOUND(HttpStatus.NOT_FOUND, "A6001", "메뉴 정보를 찾을 수 없습니다."),
+    MENU_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A6002", "이미 존재하는 메뉴 경로입니다."),
+    INVALID_PARENT_MENU(HttpStatus.BAD_REQUEST, "A6003", "유효하지 않은 상위 메뉴입니다.");
 
     private final HttpStatus status;
     private final String code;
