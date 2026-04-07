@@ -1,14 +1,17 @@
 package com.ilbo18.authrbac.domain.role.service;
 
+import com.ilbo18.authrbac.domain.audit.enumeration.AuditActionType;
+import com.ilbo18.authrbac.domain.audit.enumeration.AuditDomainType;
+import com.ilbo18.authrbac.domain.audit.service.AuditService;
 import com.ilbo18.authrbac.domain.role.entity.Role;
 import com.ilbo18.authrbac.domain.role.mapper.RoleMapper;
 import com.ilbo18.authrbac.domain.role.record.RoleRecord;
 import com.ilbo18.authrbac.domain.role.repository.RoleRepository;
 import com.ilbo18.authrbac.global.enumeration.AuthErrorCode;
 import com.ilbo18.authrbac.global.exception.CustomException;
-import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
@@ -24,6 +27,7 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
     private final RoleMapper roleMapper;
+    private final AuditService auditService;
 
     @Override
     @Transactional
@@ -33,6 +37,8 @@ public class RoleServiceImpl implements RoleService {
         Role role = roleMapper.toEntity(req);
 
         roleRepository.save(role);
+        // 감사 로그를 저장
+        auditService.createAudit(AuditDomainType.ROLE, AuditActionType.CREATE, role.getId(), "ROLE 생성");
     }
 
     @Override
@@ -53,10 +59,13 @@ public class RoleServiceImpl implements RoleService {
     }
 
     @Override
+    @Transactional
     public void updateRole(Long id, RoleRecord.Update req) {
         Role role = Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.ROLE_NOT_FOUND));
         role.update(req.name(), req.description(), req.enabled());
+        // 감사 로그를 저장
+        auditService.createAudit(AuditDomainType.ROLE, AuditActionType.UPDATE, role.getId(), "ROLE 수정");
     }
 
     /**
@@ -66,7 +75,9 @@ public class RoleServiceImpl implements RoleService {
     @Transactional
     public void deleteRole(Long id) {
         Role role = Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(id))
-                                                      .orElseThrow(() -> new CustomException(AuthErrorCode.ROLE_NOT_FOUND));
+                            .orElseThrow(() -> new CustomException(AuthErrorCode.ROLE_NOT_FOUND));
         role.delete();
+        // 감사 로그를 저장
+        auditService.createAudit(AuditDomainType.ROLE, AuditActionType.DELETE, role.getId(), "ROLE 삭제");
     }
 }

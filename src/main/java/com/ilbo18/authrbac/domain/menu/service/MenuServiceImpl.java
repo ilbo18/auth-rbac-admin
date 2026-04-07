@@ -1,5 +1,8 @@
 package com.ilbo18.authrbac.domain.menu.service;
 
+import com.ilbo18.authrbac.domain.audit.enumeration.AuditActionType;
+import com.ilbo18.authrbac.domain.audit.enumeration.AuditDomainType;
+import com.ilbo18.authrbac.domain.audit.service.AuditService;
 import com.ilbo18.authrbac.domain.menu.entity.Menu;
 import com.ilbo18.authrbac.domain.menu.mapper.MenuMapper;
 import com.ilbo18.authrbac.domain.menu.record.MenuRecord;
@@ -24,6 +27,7 @@ public class MenuServiceImpl implements MenuService {
 
     private final MenuRepository menuRepository;
     private final MenuMapper menuMapper;
+    private final AuditService auditService;
 
     @Override
     @Transactional
@@ -35,6 +39,8 @@ public class MenuServiceImpl implements MenuService {
         Menu menu = menuMapper.toEntity(req);
 
         menuRepository.save(menu);
+        // 감사 로그를 저장
+        auditService.createAudit(AuditDomainType.MENU, AuditActionType.CREATE, menu.getId(), "MENU 생성");
     }
 
     @Override
@@ -65,6 +71,8 @@ public class MenuServiceImpl implements MenuService {
         validateParentMenu(req.parentId(), id);
 
         menu.update(req.name(), req.path(), req.parentId(), req.sortOrder(), req.enabled());
+        // 감사 로그를 저장
+        auditService.createAudit(AuditDomainType.MENU, AuditActionType.UPDATE, menu.getId(), "MENU 수정");
     }
 
     @Override
@@ -73,6 +81,8 @@ public class MenuServiceImpl implements MenuService {
         Menu menu = Optional.ofNullable(menuRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.MENU_NOT_FOUND));
         menu.delete();
+        // 감사 로그를 저장
+        auditService.createAudit(AuditDomainType.MENU, AuditActionType.DELETE, menu.getId(), "MENU 삭제");
     }
 
     /** 상위 메뉴 유효성 검증 */

@@ -1,1 +1,71 @@
 @baseUrl = http://localhost:8080
+@userId = 1
+@roleId = 1
+
+### 사용자 생성
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "loginId": "admin01",
+  "password": "Password123!",
+  "name": "Admin User",
+  "roleId": {{roleId}},
+  "enabled": true
+}
+
+### 사용자 목록 조회
+GET {{baseUrl}}/api/users
+Accept: application/json
+
+### 사용자 단건 조회
+GET {{baseUrl}}/api/users/{{userId}}
+Accept: application/json
+
+### 사용자 수정
+PUT {{baseUrl}}/api/users/{{userId}}
+Content-Type: application/json
+
+{
+  "loginId": "admin01",
+  "password": "Password1234!",
+  "name": "Admin User Updated",
+  "roleId": {{roleId}},
+  "enabled": true
+}
+
+### 사용자 삭제
+DELETE {{baseUrl}}/api/users/{{userId}}
+Accept: application/json
+
+### 삭제 후 사용자 목록 조회
+GET {{baseUrl}}/api/users
+Accept: application/json
+
+### 삭제 후 사용자 단건 조회 예외 확인
+GET {{baseUrl}}/api/users/{{userId}}
+Accept: application/json
+
+### loginId 중복 생성 에러
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "loginId": "admin01",
+  "password": "Password123!",
+  "name": "Duplicate User",
+  "roleId": {{roleId}},
+  "enabled": true
+}
+
+### 유효하지 않은 역할 에러
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "loginId": "admin02",
+  "password": "Password123!",
+  "name": "Invalid Role User",
+  "roleId": 99999,
+  "enabled": true
+}

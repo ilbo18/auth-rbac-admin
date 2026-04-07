@@ -24,18 +24,25 @@ public enum AuthErrorCode implements ErrorCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "A3001", "사용자를 찾을 수 없습니다."),
     USER_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A3002", "이미 존재하는 사용자입니다."),
     INVALID_LOGIN(HttpStatus.BAD_REQUEST, "A3003", "아이디 또는 비밀번호가 올바르지 않습니다."),
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A3004", "유효하지 않은 인증 토큰입니다."),
+    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A3005", "만료된 인증 토큰입니다."),
+    DISABLED_USER(HttpStatus.FORBIDDEN, "A3006", "비활성화된 사용자입니다."),
+    AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "A3007", "인증이 필요합니다."),
 
-    ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, "A4001", "역할 정보를 찾을 수 없습니다."),
-    ROLE_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A4002", "이미 존재하는 역할 코드입니다."),
+    INVALID_ROLE(HttpStatus.BAD_REQUEST, "A4001", "유효하지 않은 역할입니다."),
+    ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, "A4002", "역할 정보를 찾을 수 없습니다."),
+    ROLE_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A4003", "이미 존재하는 역할 코드입니다."),
 
     PERMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "A5001", "권한 정보를 찾을 수 없습니다."),
     PERMISSION_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A5002", "이미 존재하는 권한 조합입니다."),
-    INVALID_ROLE(HttpStatus.BAD_REQUEST, "A5003", "유효하지 않은 역할입니다."),
-    INVALID_MENU(HttpStatus.BAD_REQUEST, "A5004", "유효하지 않은 메뉴입니다."),
+    INVALID_PERMISSION_ACTION(HttpStatus.BAD_REQUEST, "A5003", "최소 하나 이상의 권한이 필요합니다."),
 
-    MENU_NOT_FOUND(HttpStatus.NOT_FOUND, "A6001", "메뉴 정보를 찾을 수 없습니다."),
-    MENU_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A6002", "이미 존재하는 메뉴 경로입니다."),
-    INVALID_PARENT_MENU(HttpStatus.BAD_REQUEST, "A6003", "유효하지 않은 상위 메뉴입니다.");
+    INVALID_MENU(HttpStatus.BAD_REQUEST, "A6001", "유효하지 않은 메뉴입니다."),
+    MENU_NOT_FOUND(HttpStatus.NOT_FOUND, "A6002", "메뉴 정보를 찾을 수 없습니다."),
+    MENU_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "A6003", "이미 존재하는 메뉴 경로입니다."),
+    INVALID_PARENT_MENU(HttpStatus.BAD_REQUEST, "A6004", "유효하지 않은 상위 메뉴입니다."),
+
+    AUDIT_NOT_FOUND(HttpStatus.NOT_FOUND, "A7001", "감사 로그를 찾을 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;

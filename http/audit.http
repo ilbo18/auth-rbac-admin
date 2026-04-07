@@ -1,0 +1,114 @@
+@baseUrl = http://localhost:8080
+@accessToken =
+@roleId = 1
+@userId = 2
+@auditId = 1
+
+### Bootstrap role
+POST {{baseUrl}}/api/roles
+Content-Type: application/json
+
+{
+  "code": "ADMIN",
+  "name": "Admin",
+  "description": "Bootstrap role",
+  "enabled": true
+}
+
+### Bootstrap user
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "loginId": "audit-admin",
+  "password": "Password123!",
+  "name": "Audit Admin",
+  "roleId": {{roleId}},
+  "enabled": true
+}
+
+### 1. 로그인 성공
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "loginId": "audit-admin",
+  "password": "Password123!"
+}
+
+> {%
+client.global.set("accessToken", response.body.data.accessToken);
+%}
+
+### 2. role 생성
+POST {{baseUrl}}/api/roles
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "code": "AUDITOR",
+  "name": "Auditor",
+  "description": "Audit role",
+  "enabled": true
+}
+
+### 3. role 수정
+PUT {{baseUrl}}/api/roles/2
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Auditor Updated",
+  "description": "Audit role updated",
+  "enabled": true
+}
+
+### 4. role 삭제
+DELETE {{baseUrl}}/api/roles/2
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 5. user 생성
+POST {{baseUrl}}/api/users
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "loginId": "audit-user",
+  "password": "Password123!",
+  "name": "Audit User",
+  "roleId": {{roleId}},
+  "enabled": true
+}
+
+### 6. user 수정
+PUT {{baseUrl}}/api/users/{{userId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "loginId": "audit-user",
+  "password": "Password1234!",
+  "name": "Audit User Updated",
+  "roleId": {{roleId}},
+  "enabled": true
+}
+
+### 7. user 삭제
+DELETE {{baseUrl}}/api/users/{{userId}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 8. audit 목록 조회
+GET {{baseUrl}}/api/audits
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 9. audit 단건 조회
+GET {{baseUrl}}/api/audits/{{auditId}}
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 10. 토큰 없이 audit 조회 실패 확인
+GET {{baseUrl}}/api/audits
+Accept: application/json

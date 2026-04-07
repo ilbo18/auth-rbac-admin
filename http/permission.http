@@ -1,1 +1,52 @@
 @baseUrl = http://localhost:8080
+@permissionId = 1
+@roleId = 1
+@menuId = 1
+
+### 권한 생성
+POST {{baseUrl}}/api/permissions
+Content-Type: application/json
+
+{
+  "roleId": {{roleId}},
+  "menuId": {{menuId}},
+  "canRead": true,
+  "canCreate": true,
+  "canUpdate": false,
+  "canDelete": false,
+  "enabled": true
+}
+
+### 권한 목록 조회
+GET {{baseUrl}}/api/permissions
+Accept: application/json
+
+### 권한 단건 조회
+GET {{baseUrl}}/api/permissions/{{permissionId}}
+Accept: application/json
+
+### 권한 수정
+PUT {{baseUrl}}/api/permissions/{{permissionId}}
+Content-Type: application/json
+
+{
+  "roleId": {{roleId}},
+  "menuId": {{menuId}},
+  "canRead": true,
+  "canCreate": true,
+  "canUpdate": true,
+  "canDelete": false,
+  "enabled": true
+}
+
+### 권한 삭제
+DELETE {{baseUrl}}/api/permissions/{{permissionId}}
+Accept: application/json
+
+### 삭제 후 권한 목록 조회
+GET {{baseUrl}}/api/permissions
+Accept: application/json
+
+### 삭제 후 권한 단건 조회 예외 확인
+GET {{baseUrl}}/api/permissions/{{permissionId}}
+Accept: application/json
