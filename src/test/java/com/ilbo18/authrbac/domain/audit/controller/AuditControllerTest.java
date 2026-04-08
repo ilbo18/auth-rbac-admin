@@ -48,9 +48,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 감사 로그 조회와 로그 적재 흐름을 검증한다.
+ * 감사 로그 적재와 검색 API를 함께 검증한다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.sql.init.mode=never")
 @Transactional
 @AutoConfigureMockMvc
 class AuditControllerTest {
@@ -96,15 +96,19 @@ class AuditControllerTest {
         // given
         Role adminRole = createRole("AUDIT_ADMIN", "AuditAdmin");
         User adminUser = createUser("auditadmin", "Password1!", "Admin", adminRole.getId(), true);
+        Menu auditMenu = createMenu("Audits", "/admin/audits", "/api/audits");
+        createPermission(adminRole.getId(), auditMenu.getId(), true, false, false, false, true);
         String accessToken = loginAndGetAccessToken("auditadmin", "Password1!");
+
         authenticateAs(adminUser);
         try {
             createAuditSourceData();
         } finally {
             SecurityContextHolder.clearContext();
         }
+
         List<Audit> audits = auditRepository.findAll();
-        Audit permissionDeleteAudit = findAudit(AuditDomainType.PERMISSION, AuditActionType.DELETE);
+        Audit permissionDeleteAudit = findAudit(AuditDomainType.PERMISSION, AuditActionType.DELETE, "PERMISSION 삭제");
 
         // then
         assertThat(audits).hasSize(12);
@@ -116,7 +120,6 @@ class AuditControllerTest {
         assertThat(countByAction(audits, AuditActionType.UPDATE)).isEqualTo(4L);
         assertThat(countByAction(audits, AuditActionType.DELETE)).isEqualTo(4L);
         assertThat(permissionDeleteAudit.getActorLoginId()).isEqualTo("auditadmin");
-        assertThat(permissionDeleteAudit.getDescription()).isEqualTo("PERMISSION 삭제");
 
         // when
         ResultActions listResult = mockMvc.perform(get("/api/audits")
@@ -125,7 +128,9 @@ class AuditControllerTest {
         // then
         listResult.andExpect(status().isOk())
                   .andExpect(jsonPath("$.code").value(200))
-                  .andExpect(jsonPath("$.data.length()").value(12));
+                  .andExpect(jsonPath("$.data.content.length()").value(12))
+                  .andExpect(jsonPath("$.data.totalElements").value(12))
+                  .andExpect(jsonPath("$.data.first").value(true));
 
         // when
         ResultActions detailResult = mockMvc.perform(get("/api/audits/{id}", permissionDeleteAudit.getId())
@@ -141,6 +146,40 @@ class AuditControllerTest {
     }
 
     @Test
+    void 감사로그를_조건검색하고_페이징할_수_있다() throws Exception {
+        // given
+        Role adminRole = createRole("AUDIT_ADMIN_SEARCH", "AuditAdminSearch");
+        User adminUser = createUser("auditadmin", "Password1!", "Admin", adminRole.getId(), true);
+        Menu auditMenu = createMenu("Audits", "/admin/audits", "/api/audits");
+        createPermission(adminRole.getId(), auditMenu.getId(), true, false, false, false, true);
+        String accessToken = loginAndGetAccessToken("auditadmin", "Password1!");
+
+        authenticateAs(adminUser);
+        try {
+            createAuditSourceData();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        // when
+        ResultActions result = mockMvc.perform(get("/api/audits")
+                                          .queryParam("page", "0")
+                                          .queryParam("size", "2")
+                                          .queryParam("domainType", "ROLE")
+                                          .queryParam("actorLoginId", "auditadmin")
+                                          .header(HttpHeaders.AUTHORIZATION, bearerToken(accessToken)));
+
+        // then
+        result.andExpect(status().isOk())
+              .andExpect(jsonPath("$.code").value(200))
+              .andExpect(jsonPath("$.data.content.length()").value(2))
+              .andExpect(jsonPath("$.data.totalElements").value(3))
+              .andExpect(jsonPath("$.data.totalPages").value(2))
+              .andExpect(jsonPath("$.data.content[0].domainType").value("ROLE"))
+              .andExpect(jsonPath("$.data.content[0].actorLoginId").value("auditadmin"));
+    }
+
+    @Test
     void 토큰이_없으면_감사로그_조회에_실패한다() throws Exception {
         // when
         ResultActions result = mockMvc.perform(get("/api/audits"));
@@ -150,22 +189,27 @@ class AuditControllerTest {
               .andExpect(jsonPath("$.code").value("A3007"));
     }
 
-    /** 각 도메인에서 create, update, delete 를 한 번씩 수행해 총 12건의 감사 로그를 만든다. */
+    /** 각 도메인에서 create, update, delete 를 한 번씩 수행해 12건의 감사 로그를 만든다. */
     private void createAuditSourceData() {
         roleService.createRole(new RoleRecord.Create("AUDIT_ROLE", "AuditRole", "audit role", true));
         Role role = findRoleByCode("AUDIT_ROLE");
         roleService.updateRole(role.getId(), new RoleRecord.Update("AuditRole2", "audit role 2", true));
 
-        menuService.createMenu(new MenuRecord.Create("Dashboard", "/dashboard", null, 1, true));
-        Menu menu = findMenuByPath("/dashboard");
-        menuService.updateMenu(menu.getId(), new MenuRecord.Update("Dashboard2", "/dashboard-main", null, 2, true));
+        menuService.createMenu(new MenuRecord.Create("Dashboard", "/admin/dashboard", "/api/dashboard", null, 1, true));
+        Menu menu = findMenuByRoutePath("/admin/dashboard");
+        menuService.updateMenu(menu.getId(), new MenuRecord.Update("Dashboard2", "/admin/dashboard/main", "/api/dashboard/main", null, 2, true));
 
         userService.createUser(new UserRecord.Create("audit01", "Password1!", "Auditor", role.getId(), true));
         User user = userRepository.findByLoginIdAndDeletedFalse("audit01");
         userService.updateUser(user.getId(), new UserRecord.Update("audit02", "Password2!", "Auditor2", role.getId(), true));
 
         permissionService.createPermission(new PermissionRecord.Create(role.getId(), menu.getId(), true, true, false, false, true));
-        Permission permission = permissionRepository.findAllByDeletedFalse().get(0);
+        Permission permission = permissionRepository.findAllByDeletedFalse()
+                                                    .stream()
+                                                    .filter(item -> role.getId().equals(item.getRoleId()))
+                                                    .filter(item -> menu.getId().equals(item.getMenuId()))
+                                                    .findFirst()
+                                                    .orElseThrow();
         permissionService.updatePermission(permission.getId(), new PermissionRecord.Update(role.getId(), menu.getId(), true, true, true, false, true));
 
         permissionService.deletePermission(permission.getId());
@@ -174,7 +218,7 @@ class AuditControllerTest {
         roleService.deleteRole(role.getId());
     }
 
-    /** 관리자 로그인 fixture 는 감사 건수에 포함되면 안 되므로 repository.save 로 직접 저장한다. */
+    /** 감사 건수를 고정하려고 관리자 역할은 repository.save 로 직접 준비한다. */
     private Role createRole(String code, String name) {
         return roleRepository.save(
             Role.builder()
@@ -186,7 +230,7 @@ class AuditControllerTest {
         );
     }
 
-    /** 감사 로그 개수를 고정하기 위해 관리자 사용자도 repository.save 로 직접 저장한다. */
+    /** 로그인용 관리자 사용자는 audit 개수에 섞이면 안 되므로 직접 저장한다. */
     private User createUser(String loginId, String rawPassword, String name, Long roleId, boolean enabled) {
         return userRepository.save(
             User.builder()
@@ -199,7 +243,35 @@ class AuditControllerTest {
         );
     }
 
-    /** 삭제 전 상태의 역할만 대상으로 찾아 테스트 대상을 명확히 식별한다. */
+    /** 감사 조회 권한만 추가하려고 메뉴는 repository.save 로 직접 준비한다. */
+    private Menu createMenu(String name, String routePath, String apiPath) {
+        return menuRepository.save(
+            Menu.builder()
+                .name(name)
+                .routePath(routePath)
+                .apiPath(apiPath)
+                .parentId(null)
+                .sortOrder(1)
+                .enabled(true)
+                .build()
+        );
+    }
+
+    /** 권한 CRUD를 타면 감사 건수가 늘어나므로 audit 조회 권한은 직접 저장한다. */
+    private Permission createPermission(Long roleId, Long menuId, boolean canRead, boolean canCreate, boolean canUpdate, boolean canDelete, boolean enabled) {
+        return permissionRepository.save(
+            Permission.builder()
+                .roleId(roleId)
+                .menuId(menuId)
+                .canRead(canRead)
+                .canCreate(canCreate)
+                .canUpdate(canUpdate)
+                .canDelete(canDelete)
+                .enabled(enabled)
+                .build()
+        );
+    }
+
     private Role findRoleByCode(String code) {
         return roleRepository.findAllByDeletedFalse()
                              .stream()
@@ -208,34 +280,32 @@ class AuditControllerTest {
                              .orElseThrow();
     }
 
-    /** 삭제 전 상태의 메뉴만 대상으로 찾아 테스트 대상을 명확히 식별한다. */
-    private Menu findMenuByPath(String path) {
+    private Menu findMenuByRoutePath(String routePath) {
         return menuRepository.findAllByDeletedFalse()
                              .stream()
-                             .filter(menu -> path.equals(menu.getPath()))
+                             .filter(menu -> routePath.equals(menu.getRoutePath()))
                              .findFirst()
                              .orElseThrow();
     }
 
-    /** 도메인과 작업 유형으로 특정 감사 로그를 찾는다. */
-    private Audit findAudit(AuditDomainType domainType, AuditActionType actionType) {
+    private Audit findAudit(AuditDomainType domainType, AuditActionType actionType, String description) {
         return auditRepository.findAll()
                               .stream()
                               .filter(audit -> audit.getDomainType() == domainType)
                               .filter(audit -> audit.getActionType() == actionType)
+                              .filter(audit -> description.equals(audit.getDescription()))
                               .findFirst()
                               .orElseThrow();
     }
 
-    /** 서비스 직접 호출에도 인증 사용자 문맥을 맞추기 위해 SecurityContext 를 수동으로 채운다. */
     private void authenticateAs(User user) {
         AuthenticatedUser authenticatedUser = new AuthenticatedUser(user.getId(), user.getLoginId(), user.getRoleId());
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(authenticatedUser, null, Collections.emptyList());
+        UsernamePasswordAuthenticationToken authentication =
+            new UsernamePasswordAuthenticationToken(authenticatedUser, null, Collections.emptyList());
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
-    /** 로그인 후 access token 을 추출한다. */
     private String loginAndGetAccessToken(String loginId, String password) throws Exception {
         AuthRecord.Login req = new AuthRecord.Login(loginId, password);
         MvcResult result = mockMvc.perform(post("/api/auth/login")
@@ -249,21 +319,18 @@ class AuditControllerTest {
         return response.path("data").path("accessToken").asText();
     }
 
-    /** 도메인 유형별 로그 수를 센다. */
     private long countByDomain(List<Audit> audits, AuditDomainType domainType) {
         return audits.stream()
                      .filter(audit -> audit.getDomainType() == domainType)
                      .count();
     }
 
-    /** 작업 유형별 로그 수를 센다. */
     private long countByAction(List<Audit> audits, AuditActionType actionType) {
         return audits.stream()
                      .filter(audit -> audit.getActionType() == actionType)
                      .count();
     }
 
-    /** Bearer 인증 헤더 값을 생성한다. */
     private String bearerToken(String accessToken) {
         return "Bearer " + accessToken;
     }

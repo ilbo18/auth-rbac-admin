@@ -1,83 +1,60 @@
 @baseUrl = http://localhost:8080
 @accessToken =
 
-### 인증 테스트용 역할 생성
-POST {{baseUrl}}/api/roles
-Content-Type: application/json
-
-{
-  "code": "ADMIN",
-  "name": "Admin",
-  "description": "Bootstrap role",
-  "enabled": true
-}
-
-### 인증 테스트용 사용자 생성
-POST {{baseUrl}}/api/users
-Content-Type: application/json
-
-{
-  "loginId": "admin01",
-  "password": "Password123!",
-  "name": "Admin User",
-  "roleId": 1,
-  "enabled": true
-}
-
-### 로그인 성공
+### 1. 로그인 성공
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "loginId": "admin01",
-  "password": "Password123!"
+  "loginId": "admin",
+  "password": "Admin123!"
 }
 
 > {%
-    client.global.set("accessToken", response.body.data.accessToken);
+client.global.set("accessToken", response.body.data.accessToken);
 %}
 
-### 로그인 실패 - 비밀번호 불일치
+### 2. 로그인 실패 - 비밀번호 불일치
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "loginId": "admin01",
+  "loginId": "admin",
   "password": "WrongPassword!"
 }
 
-### 로그인 실패 - 존재하지 않는 로그인 ID
+### 3. 로그인 실패 - 존재하지 않는 loginId
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
   "loginId": "unknown-user",
-  "password": "Password123!"
+  "password": "Admin123!"
 }
 
-### 로그인 성공 후 토큰 추출
+### 4. 로그인 성공 후 access token 재추출
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "loginId": "admin01",
-  "password": "Password123!"
+  "loginId": "admin",
+  "password": "Admin123!"
 }
 
 > {%
-    client.global.set("accessToken", response.body.data.accessToken);
+client.global.set("accessToken", response.body.data.accessToken);
 %}
 
-### 내 정보 조회 성공
+### 5. 내 정보 조회 성공
 GET {{baseUrl}}/api/auth/me
 Authorization: Bearer {{accessToken}}
 Accept: application/json
 
-### 내 정보 조회 실패 - 토큰 없음
+### 6. 토큰 없이 내 정보 조회 실패
 GET {{baseUrl}}/api/auth/me
 Accept: application/json
 
-### 내 정보 조회 실패 - 잘못된 토큰
+### 7. 잘못된 토큰으로 내 정보 조회 실패
 GET {{baseUrl}}/api/auth/me
 Authorization: Bearer invalid-token
 Accept: application/json

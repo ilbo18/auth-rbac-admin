@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * 역할 서비스의 기본 CRUD 흐름을 검증한다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.sql.init.mode=never")
 @Transactional
 class RoleServiceTest {
 
@@ -68,7 +68,6 @@ class RoleServiceTest {
         assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.ROLE_NOT_FOUND);
     }
 
-    /** 코드로 역할을 찾아 테스트 대상을 명확히 식별한다. */
     private RoleRecord.Response findRoleByCode(String code) {
         return roleService.getRoles()
                           .stream()

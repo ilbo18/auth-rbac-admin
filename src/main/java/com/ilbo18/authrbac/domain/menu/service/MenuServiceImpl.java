@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -25,6 +26,9 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 public class MenuServiceImpl implements MenuService {
 
+    private static final Comparator<Menu> MENU_TREE_COMPARATOR = Comparator.comparing(Menu::getSortOrder)
+                                                                           .thenComparing(Menu::getId);
+
     private final MenuRepository menuRepository;
     private final MenuMapper menuMapper;
     private final AuditService auditService;
@@ -32,14 +36,12 @@ public class MenuServiceImpl implements MenuService {
     @Override
     @Transactional
     public void createMenu(MenuRecord.Create req) {
-        if (menuRepository.existsByPath(req.path())) throw new CustomException(AuthErrorCode.MENU_ALREADY_EXISTS);
-
+        validateMenuPaths(req.routePath(), req.apiPath(), null);
         validateParentMenu(req.parentId(), null);
 
         Menu menu = menuMapper.toEntity(req);
 
         menuRepository.save(menu);
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.MENU, AuditActionType.CREATE, menu.getId(), "MENU 생성");
     }
 
@@ -50,6 +52,16 @@ public class MenuServiceImpl implements MenuService {
                              .sorted(Comparator.comparingLong(Menu::getId))
                              .map(menuMapper::toResponse)
                              .toList();
+    }
+
+    @Override
+    public List<MenuRecord.TreeResponse> getMenuTree() {
+        List<Menu> menus = menuRepository.findAllByDeletedFalse()
+                                         .stream()
+                                         .sorted(MENU_TREE_COMPARATOR)
+                                         .toList();
+
+        return buildTree(null, menus);
     }
 
     @Override
@@ -66,12 +78,10 @@ public class MenuServiceImpl implements MenuService {
         Menu menu = Optional.ofNullable(menuRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.MENU_NOT_FOUND));
 
-        if (menuRepository.existsByPathAndIdNot(req.path(), id)) throw new CustomException(AuthErrorCode.MENU_ALREADY_EXISTS);
-
+        validateMenuPaths(req.routePath(), req.apiPath(), id);
         validateParentMenu(req.parentId(), id);
 
-        menu.update(req.name(), req.path(), req.parentId(), req.sortOrder(), req.enabled());
-        // 감사 로그를 저장
+        menu.update(req.name(), req.routePath(), req.apiPath(), req.parentId(), req.sortOrder(), req.enabled());
         auditService.createAudit(AuditDomainType.MENU, AuditActionType.UPDATE, menu.getId(), "MENU 수정");
     }
 
@@ -81,17 +91,40 @@ public class MenuServiceImpl implements MenuService {
         Menu menu = Optional.ofNullable(menuRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.MENU_NOT_FOUND));
         menu.delete();
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.MENU, AuditActionType.DELETE, menu.getId(), "MENU 삭제");
     }
 
-    /** 상위 메뉴 유효성 검증 */
-    private void validateParentMenu(Long parentId, Long menuId) {
-        if (parentId == null) return;
+    private void validateMenuPaths(String routePath, String apiPath, Long menuId) {
+        boolean routePathExists = menuId == null
+            ? menuRepository.existsByRoutePath(routePath)
+            : menuRepository.existsByRoutePathAndIdNot(routePath, menuId);
 
-        if (parentId.equals(menuId)) throw new CustomException(AuthErrorCode.INVALID_PARENT_MENU);
+        boolean apiPathExists = menuId == null
+            ? menuRepository.existsByApiPath(apiPath)
+            : menuRepository.existsByApiPathAndIdNot(apiPath, menuId);
+
+        if (routePathExists || apiPathExists) {
+            throw new CustomException(AuthErrorCode.MENU_ALREADY_EXISTS);
+        }
+    }
+
+    private void validateParentMenu(Long parentId, Long menuId) {
+        if (parentId == null) {
+            return;
+        }
+
+        if (parentId.equals(menuId)) {
+            throw new CustomException(AuthErrorCode.INVALID_PARENT_MENU);
+        }
 
         Optional.ofNullable(menuRepository.findByIdAndDeletedFalse(parentId))
                 .orElseThrow(() -> new CustomException(AuthErrorCode.INVALID_PARENT_MENU));
+    }
+
+    private List<MenuRecord.TreeResponse> buildTree(Long parentId, List<Menu> menus) {
+        return menus.stream()
+                    .filter(menu -> Objects.equals(menu.getParentId(), parentId))
+                    .map(menu -> menuMapper.toTreeResponse(menu, buildTree(menu.getId(), menus)))
+                    .toList();
     }
 }

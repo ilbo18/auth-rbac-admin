@@ -16,5 +16,7 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
 
     List<Permission> findAllByDeletedFalse();
 
+    Permission findByRoleIdAndMenuIdAndDeletedFalseAndEnabledTrue(Long roleId, Long menuId);
+
     Permission findByIdAndDeletedFalse(Long id);
 }

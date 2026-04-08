@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * 권한 서비스의 핵심 비즈니스 규칙을 검증한다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.sql.init.mode=never")
 @Transactional
 class PermissionServiceTest {
 
@@ -42,7 +42,7 @@ class PermissionServiceTest {
     void 권한을_생성할_수_있다() {
         // given
         Role role = createRole("PERM_CREATE", "PermCreate");
-        Menu menu = createMenu("Dashboard", "/dashboard");
+        Menu menu = createMenu("Dashboard", "/admin/dashboard", "/api/dashboard");
         PermissionRecord.Create req = new PermissionRecord.Create(role.getId(), menu.getId(), true, false, false, false, true);
 
         // when
@@ -60,7 +60,7 @@ class PermissionServiceTest {
     void 역할과_메뉴_조합이_중복되면_권한_생성에_실패한다() {
         // given
         Role role = createRole("PERM_DUP", "PermDup");
-        Menu menu = createMenu("Users", "/users");
+        Menu menu = createMenu("Users", "/admin/users", "/api/users");
         PermissionRecord.Create req = new PermissionRecord.Create(role.getId(), menu.getId(), true, false, false, false, true);
         permissionService.createPermission(req);
 
@@ -74,7 +74,7 @@ class PermissionServiceTest {
     @Test
     void 존재하지_않는_역할이면_권한_생성에_실패한다() {
         // given
-        Menu menu = createMenu("Users", "/users");
+        Menu menu = createMenu("Users", "/admin/users", "/api/users");
         PermissionRecord.Create req = new PermissionRecord.Create(999L, menu.getId(), true, false, false, false, true);
 
         // when
@@ -101,7 +101,7 @@ class PermissionServiceTest {
     void 모든_권한이_false면_권한_생성에_실패한다() {
         // given
         Role role = createRole("PERM_ACT", "PermAct");
-        Menu menu = createMenu("Users", "/users");
+        Menu menu = createMenu("Users", "/admin/users", "/api/users");
         PermissionRecord.Create req = new PermissionRecord.Create(role.getId(), menu.getId(), false, false, false, false, true);
 
         // when
@@ -115,8 +115,8 @@ class PermissionServiceTest {
     void 권한을_수정할_수_있다() {
         // given
         Role role = createRole("PERM_UPDATE", "PermUpdate");
-        Menu sourceMenu = createMenu("Users", "/users");
-        Menu targetMenu = createMenu("Reports", "/reports");
+        Menu sourceMenu = createMenu("Users", "/admin/users", "/api/users");
+        Menu targetMenu = createMenu("Reports", "/admin/reports", "/api/reports");
         PermissionRecord.Create createReq = new PermissionRecord.Create(role.getId(), sourceMenu.getId(), true, false, false, false, true);
         permissionService.createPermission(createReq);
         Long permissionId = permissionRepository.findAllByDeletedFalse().get(0).getId();
@@ -137,7 +137,7 @@ class PermissionServiceTest {
     void 삭제한_권한은_같은_조합으로_다시_생성할_수_있다() {
         // given
         Role role = createRole("PERM_RECREATE", "PermRecreate");
-        Menu menu = createMenu("Reports", "/reports");
+        Menu menu = createMenu("Reports", "/admin/reports", "/api/reports");
         PermissionRecord.Create req = new PermissionRecord.Create(role.getId(), menu.getId(), true, false, false, false, true);
         permissionService.createPermission(req);
         Long permissionId = permissionRepository.findAllByDeletedFalse().get(0).getId();
@@ -151,7 +151,7 @@ class PermissionServiceTest {
         assertThat(permissionRepository.findAllByDeletedFalse()).hasSize(1);
     }
 
-    /** 권한 서비스의 참조 데이터만 빠르게 만들기 위해 역할은 repository.save 로 직접 저장한다. */
+    /** 권한 검증에 필요한 참조 데이터만 준비하려고 역할은 직접 저장한다. */
     private Role createRole(String code, String name) {
         return roleRepository.save(
             Role.builder()
@@ -163,12 +163,13 @@ class PermissionServiceTest {
         );
     }
 
-    /** 메뉴 검증이 목적이 아니므로 참조 메뉴는 repository.save 로 직접 저장한다. */
-    private Menu createMenu(String name, String path) {
+    /** 인가 경로 기준 검증이 목적이 아니므로 메뉴도 직접 저장한다. */
+    private Menu createMenu(String name, String routePath, String apiPath) {
         return menuRepository.save(
             Menu.builder()
                 .name(name)
-                .path(path)
+                .routePath(routePath)
+                .apiPath(apiPath)
                 .parentId(null)
                 .sortOrder(1)
                 .enabled(true)

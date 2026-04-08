@@ -10,9 +10,15 @@ import java.util.List;
  */
 public interface MenuRepository extends JpaRepository<Menu, Long> {
 
-    boolean existsByPath(String path);
+    boolean existsByRoutePath(String routePath);
 
-    boolean existsByPathAndIdNot(String path, Long id);
+    boolean existsByRoutePathAndIdNot(String routePath, Long id);
+
+    boolean existsByApiPath(String apiPath);
+
+    boolean existsByApiPathAndIdNot(String apiPath, Long id);
+
+    List<Menu> findAllByDeletedFalseAndEnabledTrue();
 
     List<Menu> findAllByDeletedFalse();
 

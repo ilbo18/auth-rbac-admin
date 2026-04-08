@@ -19,9 +19,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 권한 서비스 구현체
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -47,7 +44,6 @@ public class PermissionServiceImpl implements PermissionService {
         Permission permission = permissionMapper.toEntity(req);
 
         permissionRepository.save(permission);
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.PERMISSION, AuditActionType.CREATE, permission.getId(), "PERMISSION 생성");
     }
 
@@ -91,7 +87,6 @@ public class PermissionServiceImpl implements PermissionService {
             req.canDelete(),
             req.enabled()
         );
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.PERMISSION, AuditActionType.UPDATE, permission.getId(), "PERMISSION 수정");
     }
 
@@ -100,24 +95,21 @@ public class PermissionServiceImpl implements PermissionService {
     public void deletePermission(Long id) {
         Permission permission = Optional.ofNullable(permissionRepository.findByIdAndDeletedFalse(id))
                                         .orElseThrow(() -> new CustomException(AuthErrorCode.PERMISSION_NOT_FOUND));
+
         permission.delete();
-        // 감사 로그를 저장한다.
         auditService.createAudit(AuditDomainType.PERMISSION, AuditActionType.DELETE, permission.getId(), "PERMISSION 삭제");
     }
 
-    /** 역할 유효성 검증 */
     private void validateRole(Long roleId) {
         Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(roleId))
                 .orElseThrow(() -> new CustomException(AuthErrorCode.INVALID_ROLE));
     }
 
-    /** 메뉴 유효성 검증 */
     private void validateMenu(Long menuId) {
         Optional.ofNullable(menuRepository.findByIdAndDeletedFalse(menuId))
                 .orElseThrow(() -> new CustomException(AuthErrorCode.INVALID_MENU));
     }
 
-    /** 액션(CRUD) 유효성 검증 */
     private void validateActions(Boolean canRead, Boolean canCreate, Boolean canUpdate, Boolean canDelete) {
         if (!Boolean.TRUE.equals(canRead)
                 && !Boolean.TRUE.equals(canCreate)

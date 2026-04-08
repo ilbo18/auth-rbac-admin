@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 /**
- * Authorization 헤더의 JWT를 검증하고 인증 정보를 설정한다.
+ * JWT 인증에 집중하고, 인가 규칙은 별도 컴포넌트로 위임한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -31,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final ApiAuthorizationRule apiAuthorizationRule;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -54,9 +55,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             AuthenticatedUser authenticatedUser = jwtTokenProvider.getAuthenticatedUser(token);
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(authenticatedUser, null, Collections.emptyList());
+            UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(authenticatedUser, null, Collections.emptyList());
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            if (apiAuthorizationRule.requiresAuthorization(request)) {
+                apiAuthorizationRule.validate(authenticatedUser, request);
+            }
+
             filterChain.doFilter(request, response);
         } catch (CustomException e) {
             SecurityContextHolder.clearContext();
@@ -67,7 +74,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    /** 기존 에러 응답 형식으로 필터 예외를 반환한다. */
     private void writeErrorResponse(HttpServletResponse response, ErrorCode errorCode) throws IOException {
         response.setStatus(errorCode.getStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

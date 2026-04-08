@@ -41,6 +41,12 @@ public class MenuController {
         return ResponseEntity.ok(ApiResponseRecord.success(menuService.getMenus()));
     }
 
+    /** 메뉴 트리 조회 */
+    @GetMapping("/tree")
+    public ResponseEntity<ApiResponseRecord<List<MenuRecord.TreeResponse>>> getMenuTree() {
+        return ResponseEntity.ok(ApiResponseRecord.success(menuService.getMenuTree()));
+    }
+
     /** 메뉴 단건 조회 */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponseRecord<MenuRecord.Response>> getMenu(@PathVariable Long id) {

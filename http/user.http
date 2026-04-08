@@ -1,69 +1,92 @@
 @baseUrl = http://localhost:8080
-@userId = 1
+@accessToken =
+@userId = 2
 @roleId = 1
 
-### 사용자 생성
-POST {{baseUrl}}/api/users
+### 1. 관리자 로그인
+POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "loginId": "admin01",
+  "loginId": "admin",
+  "password": "Admin123!"
+}
+
+> {%
+client.global.set("accessToken", response.body.data.accessToken);
+%}
+
+### 2. 사용자 생성
+POST {{baseUrl}}/api/users
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "loginId": "manager01",
   "password": "Password123!",
-  "name": "Admin User",
+  "name": "Manager User",
   "roleId": {{roleId}},
   "enabled": true
 }
 
-### 사용자 목록 조회
+### 3. 사용자 목록 조회
 GET {{baseUrl}}/api/users
+Authorization: Bearer {{accessToken}}
 Accept: application/json
 
-### 사용자 단건 조회
+### 4. 사용자 단건 조회
 GET {{baseUrl}}/api/users/{{userId}}
+Authorization: Bearer {{accessToken}}
 Accept: application/json
 
-### 사용자 수정
+### 5. 사용자 수정
 PUT {{baseUrl}}/api/users/{{userId}}
+Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "loginId": "admin01",
+  "loginId": "manager01",
   "password": "Password1234!",
-  "name": "Admin User Updated",
+  "name": "Manager User Updated",
   "roleId": {{roleId}},
   "enabled": true
 }
 
-### 사용자 삭제
+### 6. 사용자 삭제
 DELETE {{baseUrl}}/api/users/{{userId}}
+Authorization: Bearer {{accessToken}}
 Accept: application/json
 
-### 삭제 후 사용자 목록 조회
+### 7. 삭제 후 사용자 목록 조회
 GET {{baseUrl}}/api/users
+Authorization: Bearer {{accessToken}}
 Accept: application/json
 
-### 삭제 후 사용자 단건 조회 예외 확인
+### 8. 삭제 후 사용자 단건 조회 예외 확인
 GET {{baseUrl}}/api/users/{{userId}}
+Authorization: Bearer {{accessToken}}
 Accept: application/json
 
-### loginId 중복 생성 에러
+### 9. loginId 중복 생성 예외 확인
 POST {{baseUrl}}/api/users
+Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "loginId": "admin01",
+  "loginId": "admin",
   "password": "Password123!",
   "name": "Duplicate User",
   "roleId": {{roleId}},
   "enabled": true
 }
 
-### 유효하지 않은 역할 에러
+### 10. 존재하지 않는 roleId 생성 예외 확인
 POST {{baseUrl}}/api/users
+Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "loginId": "admin02",
+  "loginId": "manager02",
   "password": "Password123!",
   "name": "Invalid Role User",
   "roleId": 99999,

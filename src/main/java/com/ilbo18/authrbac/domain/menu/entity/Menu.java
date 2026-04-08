@@ -14,7 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 메뉴 정보를 관리하는 엔티티
+ * 화면 이동 경로와 API 인가 기준을 함께 관리하는 메뉴 엔티티
  */
 @Getter
 @Entity
@@ -32,9 +32,13 @@ public class Menu extends BaseEntity {
     @Column(nullable = false, length = 100)
     private String name;
 
-    /** 메뉴 경로 */
-    @Column(nullable = false, unique = true, length = 255)
-    private String path;
+    /** UI 또는 메뉴 이동 경로 */
+    @Column(name = "route_path", nullable = false, unique = true, length = 255)
+    private String routePath;
+
+    /** permission 인가 기준 경로 */
+    @Column(name = "api_path", nullable = false, unique = true, length = 255)
+    private String apiPath;
 
     /** 상위 메뉴 ID */
     @Column
@@ -48,10 +52,10 @@ public class Menu extends BaseEntity {
     @Column(nullable = false)
     private Boolean enabled;
 
-    /** 메뉴 정보 수정 */
-    public void update(String name, String path, Long parentId, Integer sortOrder, Boolean enabled) {
+    public void update(String name, String routePath, String apiPath, Long parentId, Integer sortOrder, Boolean enabled) {
         this.name = name;
-        this.path = path;
+        this.routePath = routePath;
+        this.apiPath = apiPath;
         this.parentId = parentId;
         this.sortOrder = sortOrder;
         this.enabled = enabled;

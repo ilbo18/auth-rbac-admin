@@ -20,9 +20,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 사용자 서비스 구현체
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -46,11 +43,9 @@ public class UserServiceImpl implements UserService {
         }
 
         String encodedPassword = passwordEncoder.encode(req.password());
-
         User user = userMapper.toEntity(req, loginId, encodedPassword);
 
         userRepository.save(user);
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.USER, AuditActionType.CREATE, user.getId(), "USER 생성");
     }
 
@@ -88,7 +83,6 @@ public class UserServiceImpl implements UserService {
         String encodedPassword = passwordEncoder.encode(req.password());
 
         user.update(loginId, encodedPassword, req.name(), req.roleId(), req.enabled());
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.USER, AuditActionType.UPDATE, user.getId(), "USER 수정");
     }
 
@@ -97,12 +91,11 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(Long id) {
         User user = Optional.ofNullable(userRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.USER_NOT_FOUND));
+
         user.delete();
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.USER, AuditActionType.DELETE, user.getId(), "USER 삭제");
     }
 
-    /** 역할 유효성을 검증한다. */
     private void validateRole(Long roleId) {
         Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(roleId))
                 .orElseThrow(() -> new CustomException(AuthErrorCode.INVALID_ROLE));

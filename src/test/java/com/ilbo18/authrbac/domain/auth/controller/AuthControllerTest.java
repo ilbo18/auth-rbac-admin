@@ -2,6 +2,10 @@ package com.ilbo18.authrbac.domain.auth.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ilbo18.authrbac.domain.menu.entity.Menu;
+import com.ilbo18.authrbac.domain.menu.repository.MenuRepository;
+import com.ilbo18.authrbac.domain.permission.entity.Permission;
+import com.ilbo18.authrbac.domain.permission.repository.PermissionRepository;
 import com.ilbo18.authrbac.domain.role.entity.Role;
 import com.ilbo18.authrbac.domain.role.repository.RoleRepository;
 import com.ilbo18.authrbac.domain.user.entity.User;
@@ -26,9 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 인증 API 동작을 검증한다.
+ * JWT 로그인과 보호 API 인가 흐름을 함께 검증한다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.sql.init.mode=never")
 @Transactional
 @AutoConfigureMockMvc
 class AuthControllerTest {
@@ -44,6 +48,12 @@ class AuthControllerTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private MenuRepository menuRepository;
+
+    @Autowired
+    private PermissionRepository permissionRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -164,7 +174,44 @@ class AuthControllerTest {
               .andExpect(jsonPath("$.code").value("A3004"));
     }
 
-    /** 인증 흐름만 검증하려고 선행 역할 데이터는 repository.save 로 직접 저장한다. */
+    @Test
+    void 읽기_권한이_있으면_보호된_API_조회에_성공한다() throws Exception {
+        // given
+        Role role = createRole("AUTH_PERMISSION_ALLOW", "AuthPermissionAllow");
+        createUser("permituser", "Password1!", "Tester", role.getId(), true);
+        Menu userMenu = createMenu("Users", "/admin/users", "/api/users");
+        createPermission(role.getId(), userMenu.getId(), true, false, false, false, true);
+        String accessToken = loginAndGetAccessToken("permituser", "Password1!");
+
+        // when
+        ResultActions result = mockMvc.perform(get("/api/users")
+                                          .header(HttpHeaders.AUTHORIZATION, bearerToken(accessToken)));
+
+        // then
+        result.andExpect(status().isOk())
+              .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    void 읽기_권한이_없으면_보호된_API_조회에_실패한다() throws Exception {
+        // given
+        Role role = createRole("AUTH_PERMISSION_DENY", "AuthPermissionDeny");
+        createUser("denyuser", "Password1!", "Tester", role.getId(), true);
+        createMenu("Users", "/admin/users", "/api/users");
+        Menu roleMenu = createMenu("Roles", "/admin/roles", "/api/roles");
+        createPermission(role.getId(), roleMenu.getId(), true, false, false, false, true);
+        String accessToken = loginAndGetAccessToken("denyuser", "Password1!");
+
+        // when
+        ResultActions result = mockMvc.perform(get("/api/users")
+                                          .header(HttpHeaders.AUTHORIZATION, bearerToken(accessToken)));
+
+        // then
+        result.andExpect(status().isForbidden())
+              .andExpect(jsonPath("$.code").value("A1002"));
+    }
+
+    /** 인증 흐름만 검증하려고 선행 참조 데이터는 repository.save 로 직접 준비한다. */
     private Role createRole(String code, String name) {
         return roleRepository.save(
             Role.builder()
@@ -176,7 +223,7 @@ class AuthControllerTest {
         );
     }
 
-    /** 로그인 대상 사용자만 준비하려고 사용자 fixture 도 repository.save 로 직접 저장한다. */
+    /** 로그인 대상만 빠르게 만들기 위해 사용자 fixture 도 repository.save 로 직접 준비한다. */
     private User createUser(String loginId, String rawPassword, String name, Long roleId, boolean enabled) {
         return userRepository.save(
             User.builder()
@@ -189,7 +236,35 @@ class AuthControllerTest {
         );
     }
 
-    /** 로그인 응답에서 access token 을 추출한다. */
+    /** 보호 API 인가만 검증하려고 메뉴는 routePath 와 apiPath 를 직접 저장한다. */
+    private Menu createMenu(String name, String routePath, String apiPath) {
+        return menuRepository.save(
+            Menu.builder()
+                .name(name)
+                .routePath(routePath)
+                .apiPath(apiPath)
+                .parentId(null)
+                .sortOrder(1)
+                .enabled(true)
+                .build()
+        );
+    }
+
+    /** CRUD 서비스까지 타면 audit 가 섞이므로 권한 fixture 는 repository.save 로 직접 준비한다. */
+    private Permission createPermission(Long roleId, Long menuId, boolean canRead, boolean canCreate, boolean canUpdate, boolean canDelete, boolean enabled) {
+        return permissionRepository.save(
+            Permission.builder()
+                .roleId(roleId)
+                .menuId(menuId)
+                .canRead(canRead)
+                .canCreate(canCreate)
+                .canUpdate(canUpdate)
+                .canDelete(canDelete)
+                .enabled(enabled)
+                .build()
+        );
+    }
+
     private String loginAndGetAccessToken(String loginId, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                                       .contentType(MediaType.APPLICATION_JSON)
@@ -205,12 +280,10 @@ class AuthControllerTest {
         return response.path("data").path("accessToken").asText();
     }
 
-    /** JSON 요청 본문을 생성한다. */
     private String toJson(Object body) throws Exception {
         return objectMapper.writeValueAsString(body);
     }
 
-    /** Bearer 인증 헤더 값을 생성한다. */
     private String bearerToken(String accessToken) {
         return "Bearer " + accessToken;
     }

@@ -17,9 +17,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 역할 서비스 구현체
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -32,12 +29,13 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public void createRole(RoleRecord.Create req) {
-        if (roleRepository.existsByCode(req.code())) throw new CustomException(AuthErrorCode.ROLE_ALREADY_EXISTS);
+        if (roleRepository.existsByCode(req.code())) {
+            throw new CustomException(AuthErrorCode.ROLE_ALREADY_EXISTS);
+        }
 
         Role role = roleMapper.toEntity(req);
 
         roleRepository.save(role);
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.ROLE, AuditActionType.CREATE, role.getId(), "ROLE 생성");
     }
 
@@ -63,21 +61,18 @@ public class RoleServiceImpl implements RoleService {
     public void updateRole(Long id, RoleRecord.Update req) {
         Role role = Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.ROLE_NOT_FOUND));
+
         role.update(req.name(), req.description(), req.enabled());
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.ROLE, AuditActionType.UPDATE, role.getId(), "ROLE 수정");
     }
 
-    /**
-     * 역할 삭제
-     */
     @Override
     @Transactional
     public void deleteRole(Long id) {
         Role role = Optional.ofNullable(roleRepository.findByIdAndDeletedFalse(id))
                             .orElseThrow(() -> new CustomException(AuthErrorCode.ROLE_NOT_FOUND));
+
         role.delete();
-        // 감사 로그를 저장
         auditService.createAudit(AuditDomainType.ROLE, AuditActionType.DELETE, role.getId(), "ROLE 삭제");
     }
 }

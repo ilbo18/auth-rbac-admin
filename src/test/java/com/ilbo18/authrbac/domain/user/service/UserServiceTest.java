@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * 사용자 서비스의 핵심 비즈니스 규칙을 검증한다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.sql.init.mode=never")
 @Transactional
 class UserServiceTest {
 
@@ -128,7 +128,7 @@ class UserServiceTest {
         assertThat(userRepository.findByIdAndDeletedFalse(user.getId())).isNull();
     }
 
-    /** 사용자 서비스가 아닌 선행 참조 데이터만 필요하므로 역할은 repository.save 로 직접 저장한다. */
+    /** 사용자 서비스의 참조 역할만 필요해서 역할은 직접 저장한다. */
     private Role createRole(String code, String name) {
         return roleRepository.save(
             Role.builder()
@@ -140,7 +140,7 @@ class UserServiceTest {
         );
     }
 
-    /** 중복/수정 시나리오의 기준 데이터를 만들기 위해 사용자는 repository.save 로 직접 저장한다. */
+    /** 중복과 수정 시나리오의 기준 데이터를 만들기 위해 사용자는 직접 저장한다. */
     private User createUser(String loginId, String rawPassword, String name, Long roleId, boolean enabled) {
         return userRepository.save(
             User.builder()
