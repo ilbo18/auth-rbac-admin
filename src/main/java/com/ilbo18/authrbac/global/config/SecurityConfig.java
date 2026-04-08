@@ -30,11 +30,7 @@ public class SecurityConfig {
 
     /** 요청별 접근 정책과 JWT 보안 옵션을 설정한다. */
     @Bean
-    public SecurityFilterChain filterChain(
-        HttpSecurity http,
-        JwtAuthenticationFilter jwtAuthenticationFilter,
-        ObjectMapper objectMapper
-    ) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
