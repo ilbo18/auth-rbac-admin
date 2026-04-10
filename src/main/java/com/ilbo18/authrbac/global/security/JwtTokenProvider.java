@@ -23,7 +23,7 @@ import java.util.Base64;
 import java.util.Date;
 
 /**
- * access token은 JWT로 유지하고, refresh token은 Redis에 저장할 랜덤 문자열로 분리한다.
+ * 이 provider 는 local mode 의 JWT 발급과 검증만 담당한다.
  */
 @Component
 @RequiredArgsConstructor

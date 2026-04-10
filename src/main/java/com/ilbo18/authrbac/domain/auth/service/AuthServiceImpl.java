@@ -9,6 +9,7 @@ import com.ilbo18.authrbac.global.security.AuthenticatedUser;
 import com.ilbo18.authrbac.global.security.JwtTokenProvider;
 import com.ilbo18.authrbac.global.util.TextNormalizer;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,10 @@ import java.util.Optional;
 public class AuthServiceImpl implements AuthService {
 
     private static final String TOKEN_TYPE = "Bearer";
+    private static final String LOCAL_MODE = "local";
+
+    @Value("${auth.mode:local}")
+    private String authMode;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -33,6 +38,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthRecord.Token login(AuthRecord.Login req) {
+        validateLocalMode();
+
         String loginId = TextNormalizer.trimToLowerCase(req.loginId());
 
         User user = Optional.ofNullable(userRepository.findByLoginIdAndDeletedFalse(loginId))
@@ -52,6 +59,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthRecord.Token reissue(AuthRecord.Reissue req) {
+        validateLocalMode();
+
         Long userId = refreshTokenStore.findUserId(req.refreshToken());
 
         if (userId == null || !refreshTokenStore.isCurrentToken(userId, req.refreshToken())) {
@@ -73,6 +82,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void logout(AuthenticatedUser authenticatedUser) {
+        validateLocalMode();
+
         if (authenticatedUser == null) {
             throw new CustomException(AuthErrorCode.AUTHENTICATION_REQUIRED);
         }
@@ -116,5 +127,11 @@ public class AuthServiceImpl implements AuthService {
             user.getRoleId(),
             user.getName()
         );
+    }
+
+    private void validateLocalMode() {
+        if (!LOCAL_MODE.equalsIgnoreCase(authMode)) {
+            throw new CustomException(AuthErrorCode.BAD_REQUEST);
+        }
     }
 }

@@ -40,6 +40,12 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 public class SecurityConfig {
 
+    private static final String LOCAL_MODE = "local";
+    private static final String KEYCLOAK_MODE = "keycloak";
+
+    @Value("${auth.mode:local}")
+    private String authMode;
+
     @Value("${security.keycloak.enabled:false}")
     private boolean keycloakEnabled;
 
@@ -83,19 +89,26 @@ public class SecurityConfig {
                 .authenticationEntryPoint((request, response, ex) -> writeErrorResponse(response, objectMapper, resolveAuthenticationErrorCode(ex)))
                 .accessDeniedHandler((request, response, ex) -> writeErrorResponse(response, objectMapper, AuthErrorCode.FORBIDDEN))
             )
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/health",
-                    "/h2-console/**",
-                    "/api/auth/login",
-                    "/api/auth/reissue"
-                ).permitAll()
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .authorizeHttpRequests(auth -> {
+                auth.requestMatchers("/api/health", "/h2-console/**").permitAll();
+
+                if (isLocalMode()) {
+                    auth.requestMatchers("/api/auth/login", "/api/auth/reissue").permitAll();
+                }
+
+                auth.anyRequest().authenticated();
+            })
             .addFilterBefore(apiAuthorizationFilter, AuthorizationFilter.class);
 
-        if (keycloakEnabled) {
+        if (isLocalMode()) {
+            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        }
+
+        if (isKeycloakMode()) {
+            if (!keycloakEnabled) {
+                throw new IllegalStateException("keycloak mode 에서는 security.keycloak.enabled=true 가 필요합니다.");
+            }
+
             http.oauth2ResourceServer(oauth2 -> oauth2
                 .bearerTokenResolver(bearerTokenResolver)
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(keycloakJwtAuthenticationConverter))
@@ -108,6 +121,14 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private boolean isLocalMode() {
+        return LOCAL_MODE.equalsIgnoreCase(authMode);
+    }
+
+    private boolean isKeycloakMode() {
+        return KEYCLOAK_MODE.equalsIgnoreCase(authMode);
     }
 
     private AuthErrorCode resolveAuthenticationErrorCode(AuthenticationException exception) {

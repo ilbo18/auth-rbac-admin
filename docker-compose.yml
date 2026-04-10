@@ -1,1 +1,16 @@
-# docker compose will be added later
+services:
+  redis:
+    image: redis:7
+    container_name: auth-rbac-redis
+    ports:
+      - "6379:6379"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: auth-rbac-keycloak
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"

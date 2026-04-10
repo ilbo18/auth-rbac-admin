@@ -31,14 +31,15 @@ import java.util.Set;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final String LOCAL_MODE = "local";
 
     private static final Set<String> SKIP_PATHS = Set.of(
         "/api/auth/login",
         "/api/auth/reissue"
     );
 
-    @Value("${security.keycloak.enabled:false}")
-    private boolean keycloakEnabled;
+    @Value("${auth.mode:local}")
+    private String authMode;
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
@@ -51,6 +52,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
         throws ServletException, IOException {
+        if (!LOCAL_MODE.equalsIgnoreCase(authMode)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
 
         if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_PREFIX)) {
@@ -68,12 +74,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (!jwtTokenProvider.isLocalToken(token)) {
-            if (!keycloakEnabled) {
-                writeErrorResponse(response, AuthErrorCode.INVALID_TOKEN);
-                return;
-            }
-
-            filterChain.doFilter(request, response);
+            writeErrorResponse(response, AuthErrorCode.INVALID_TOKEN);
             return;
         }
 
