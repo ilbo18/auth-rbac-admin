@@ -10,6 +10,7 @@ import com.ilbo18.authrbac.global.enumeration.AuthErrorCode;
 import com.ilbo18.authrbac.global.exception.CustomException;
 import com.ilbo18.authrbac.global.security.AuthenticatedUser;
 import com.ilbo18.authrbac.global.security.SecurityContextHelper;
+import com.ilbo18.authrbac.global.util.EnumParser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.ExampleMatcher;
@@ -24,7 +25,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * 감사 로그 서비스 구현체
+ * 현재 audit 검색 축은 단순해서 ExampleMatcher 기반 조회가 가장 짧고 읽기 쉽다.
+ * 기간 검색이나 조합 조건이 늘어나는 시점에만 QueryDSL 또는 JPQL을 검토한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,6 +36,10 @@ public class AuditServiceImpl implements AuditService {
     private static final String DEFAULT_ACTOR_LOGIN_ID = "system";
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 20;
+    private static final Sort DEFAULT_SORT = Sort.by(
+        Sort.Order.desc("createdAt"),
+        Sort.Order.desc("id")
+    );
 
     private final AuditRepository auditRepository;
     private final AuditMapper auditMapper;
@@ -64,8 +70,8 @@ public class AuditServiceImpl implements AuditService {
 
         Audit probe = Audit.builder()
                            .actorLoginId(actorLoginId)
-                           .domainType(toDomainType(req.domainType()))
-                           .actionType(toActionType(req.actionType()))
+                           .domainType(EnumParser.parseOrNull(req.domainType(), AuditDomainType.class, AuthErrorCode.BAD_REQUEST))
+                           .actionType(EnumParser.parseOrNull(req.actionType(), AuditActionType.class, AuthErrorCode.BAD_REQUEST))
                            .build();
 
         ExampleMatcher matcher = ExampleMatcher.matchingAll()
@@ -75,10 +81,7 @@ public class AuditServiceImpl implements AuditService {
             matcher = matcher.withMatcher("actorLoginId", ExampleMatcher.GenericPropertyMatchers.contains().ignoreCase());
         }
 
-        Page<Audit> auditPage = auditRepository.findAll(
-            Example.of(probe, matcher),
-            PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")))
-        );
+        Page<Audit> auditPage = auditRepository.findAll(Example.of(probe, matcher), PageRequest.of(page, size, DEFAULT_SORT));
 
         return new AuditRecord.PageResponse(
             auditPage.getContent().stream().map(auditMapper::toResponse).toList(),
@@ -97,31 +100,5 @@ public class AuditServiceImpl implements AuditService {
                               .orElseThrow(() -> new CustomException(AuthErrorCode.AUDIT_NOT_FOUND));
 
         return auditMapper.toResponse(audit);
-    }
-
-    /** 문자열 검색 조건을 AuditDomainType으로 변환한다. */
-    private AuditDomainType toDomainType(String domainType) {
-        if (!StringUtils.hasText(domainType)) {
-            return null;
-        }
-
-        try {
-            return AuditDomainType.valueOf(domainType.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new CustomException(AuthErrorCode.BAD_REQUEST);
-        }
-    }
-
-    /** 문자열 검색 조건을 AuditActionType으로 변환한다. */
-    private AuditActionType toActionType(String actionType) {
-        if (!StringUtils.hasText(actionType)) {
-            return null;
-        }
-
-        try {
-            return AuditActionType.valueOf(actionType.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new CustomException(AuthErrorCode.BAD_REQUEST);
-        }
     }
 }

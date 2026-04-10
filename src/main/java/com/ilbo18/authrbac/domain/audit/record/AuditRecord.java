@@ -8,11 +8,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 감사 로그 관련 DTO 모음
+ * audit 조회는 검색 조건과 페이징 응답의 성격이 분명해서
+ * 전역 공용 페이징 DTO로 올리지 않고 도메인 내부 구조를 유지한다.
  */
 public class AuditRecord {
 
-    /** 감사 로그 검색 조건 */
+    /**
+     * 현재 검색 범위는 domainType, actionType, actorLoginId 수준으로 제한한다.
+     * 조건 조합이 더 복잡해질 때만 조회 전략 확장
+     */
     public record Search(
         @Min(value = 0, message = "page는 0 이상이어야 합니다.")
         Integer page,
@@ -31,7 +35,6 @@ public class AuditRecord {
         String actorLoginId
     ) {}
 
-    /** 감사 로그 응답 */
     public record Response(
         Long id,
         Long actorUserId,
@@ -43,7 +46,6 @@ public class AuditRecord {
         LocalDateTime createdAt
     ) {}
 
-    /** 감사 로그 페이지 응답 */
     public record PageResponse(
         List<Response> content,
         int page,

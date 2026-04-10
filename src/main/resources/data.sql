@@ -1,3 +1,6 @@
+-- 로컬 데모와 포트폴리오 실행을 위한 초기 시드다.
+-- bootstrap 공개 API 없이도 로그인, 인가, 감사 로그 흐름을 바로 확인할 수 있게 최소 관리자 데이터를 넣는다.
+
 insert into roles (
     id,
     code,
@@ -22,6 +25,8 @@ insert into roles (
     'system'
 );
 
+-- route_path 는 UI 또는 메뉴 이동 경로다.
+-- api_path 는 permission 인가 기준 경로다.
 insert into menus (
     id,
     name,
@@ -133,6 +138,7 @@ insert into users (
     'system'
 );
 
+-- ADMIN 역할은 데모 실행 직후 주요 관리 API를 모두 확인할 수 있도록 전체 권한을 가진다.
 insert into permissions (
     id,
     role_id,

@@ -11,19 +11,26 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
+import java.util.Locale;
+import java.util.Set;
 
 /**
- * 필터가 토큰 처리에 집중할 수 있도록 API 인가 규칙을 분리한다.
+ * JWT 필터는 인증에 집중하고, API 인가 판단은 이 컴포넌트에서 맡는다.
+ * 현재는 menu.apiPath 와 HTTP method 만으로 규칙을 설명할 수 있어
+ * 복잡한 인가 프레임워크 대신 이 수준을 유지한다.
  */
 @Component
 @RequiredArgsConstructor
 public class ApiAuthorizationRule {
 
     private static final String API_PREFIX = "/api/";
-    private static final String AUTH_LOGIN_PATH = "/api/auth/login";
-    private static final String AUTH_ME_PATH = "/api/auth/me";
-    private static final String HEALTH_PATH = "/api/health";
     private static final String H2_CONSOLE_PATH = "/h2-console";
+
+    private static final Set<String> EXCLUDED_API_PATHS = Set.of(
+        "/api/auth/login",
+        "/api/auth/me",
+        "/api/health"
+    );
 
     private final MenuRepository menuRepository;
     private final PermissionRepository permissionRepository;
@@ -31,20 +38,18 @@ public class ApiAuthorizationRule {
     public boolean requiresAuthorization(HttpServletRequest request) {
         String requestUri = normalizePath(request.getRequestURI());
 
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            return false;
-        }
-
-        if (!requestUri.startsWith(API_PREFIX)) {
-            return false;
-        }
-
-        return !isExcludedPath(requestUri);
+        return isApiRequest(requestUri)
+            && !isPreflight(request.getMethod())
+            && !isExcludedPath(requestUri);
     }
 
     public void validate(AuthenticatedUser authenticatedUser, HttpServletRequest request) {
+        if (authenticatedUser == null) {
+            throw new CustomException(AuthErrorCode.AUTHENTICATION_REQUIRED);
+        }
+
         String requestUri = normalizePath(request.getRequestURI());
-        Menu menu = findMatchedMenu(requestUri);
+        Menu menu = resolveProtectedMenu(requestUri);
 
         if (menu == null) {
             throw new CustomException(AuthErrorCode.FORBIDDEN);
@@ -55,19 +60,24 @@ public class ApiAuthorizationRule {
             menu.getId()
         );
 
-        if (permission == null || !isAllowed(request.getMethod(), permission)) {
+        if (!isAllowed(request.getMethod(), permission)) {
             throw new CustomException(AuthErrorCode.FORBIDDEN);
         }
     }
 
-    private boolean isExcludedPath(String requestUri) {
-        return AUTH_LOGIN_PATH.equals(requestUri)
-            || AUTH_ME_PATH.equals(requestUri)
-            || HEALTH_PATH.equals(requestUri)
-            || requestUri.startsWith(H2_CONSOLE_PATH);
+    private boolean isApiRequest(String requestUri) {
+        return requestUri.startsWith(API_PREFIX);
     }
 
-    private Menu findMatchedMenu(String requestUri) {
+    private boolean isPreflight(String requestMethod) {
+        return "OPTIONS".equalsIgnoreCase(requestMethod);
+    }
+
+    private boolean isExcludedPath(String requestUri) {
+        return EXCLUDED_API_PATHS.contains(requestUri) || requestUri.startsWith(H2_CONSOLE_PATH);
+    }
+
+    private Menu resolveProtectedMenu(String requestUri) {
         return menuRepository.findAllByDeletedFalseAndEnabledTrue()
                              .stream()
                              .filter(menu -> matchesApiPath(requestUri, menu.getApiPath()))
@@ -82,7 +92,11 @@ public class ApiAuthorizationRule {
     }
 
     private boolean isAllowed(String requestMethod, Permission permission) {
-        return switch (requestMethod.toUpperCase()) {
+        if (permission == null) {
+            return false;
+        }
+
+        return switch (requestMethod.toUpperCase(Locale.ROOT)) {
             case "GET", "HEAD" -> Boolean.TRUE.equals(permission.getCanRead());
             case "POST" -> Boolean.TRUE.equals(permission.getCanCreate());
             case "PUT", "PATCH" -> Boolean.TRUE.equals(permission.getCanUpdate());
