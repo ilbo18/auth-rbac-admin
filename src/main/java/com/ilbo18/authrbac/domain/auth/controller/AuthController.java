@@ -24,16 +24,19 @@ public class AuthController {
 
     private final AuthService authService;
 
+    /** 로그인 */
     @PostMapping("/login")
     public ResponseEntity<ApiResponseRecord<AuthRecord.Token>> login(@Valid @RequestBody AuthRecord.Login req) {
         return ResponseEntity.ok(ApiResponseRecord.success(authService.login(req)));
     }
 
+    /** 토큰 재발급 */
     @PostMapping("/reissue")
     public ResponseEntity<ApiResponseRecord<AuthRecord.Token>> reissue(@Valid @RequestBody AuthRecord.Reissue req) {
         return ResponseEntity.ok(ApiResponseRecord.success(authService.reissue(req)));
     }
 
+    /** 로그아웃 */
     @PostMapping("/logout")
     public ResponseEntity<ApiResponseRecord<String>> logout(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
         authService.logout(authenticatedUser);
@@ -41,6 +44,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponseRecord.success());
     }
 
+    /** 내 정보 조회 */
     @GetMapping("/me")
     public ResponseEntity<ApiResponseRecord<AuthRecord.Me>> me(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
         return ResponseEntity.ok(ApiResponseRecord.success(authService.getMe(authenticatedUser)));

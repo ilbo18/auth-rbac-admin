@@ -120,7 +120,7 @@ permission 인가는 `menu.apiPath` 기준으로만 동작합니다.
 
 ### reissue
 1. `POST /api/auth/reissue`
-2. body 의 refresh token 조회
+2. body 의 refresh token만으로 사용자 세션을 조회
 3. Redis에서 refresh token과 사용자 최신 토큰 여부 확인
 4. 기존 refresh token 삭제
 5. 새 access token + 새 refresh token 발급
@@ -131,6 +131,8 @@ permission 인가는 `menu.apiPath` 기준으로만 동작합니다.
 3. Redis에서 현재 사용자 refresh token 삭제
 
 access token은 stateless JWT로 유지하고, refresh token만 Redis에 저장해 재발급과 로그아웃 흐름을 분리했습니다.
+서버가 직접 삭제하는 대상은 Redis의 refresh token뿐이고, 이미 발급된 access token은 저장소에서 제거하지 않습니다.
+access token 즉시 무효화는 이번 phase 4-1 범위가 아니며, 필요하면 blacklist 방식으로 확장할 수 있습니다.
 
 ## 8. refresh token 저장 전략
 
@@ -143,6 +145,7 @@ phase 4-1에서는 DB 테이블 대신 Redis를 사용합니다.
 
 - TTL로 만료를 Redis에 맡길 수 있습니다.
 - 사용자당 최신 refresh token 1개만 유지해 로그인 교체, rotation, logout을 짧게 설명할 수 있습니다.
+- reissue는 refresh token만으로 동작하고, logout은 access token으로 인증된 현재 사용자 기준으로만 동작합니다.
 
 ## 9. 인가 흐름
 

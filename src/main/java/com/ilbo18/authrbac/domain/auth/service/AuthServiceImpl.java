@@ -9,14 +9,10 @@ import com.ilbo18.authrbac.global.security.AuthenticatedUser;
 import com.ilbo18.authrbac.global.security.JwtTokenProvider;
 import com.ilbo18.authrbac.global.util.TextNormalizer;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
-import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -107,84 +103,18 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(authenticatedUser);
         String refreshToken = jwtTokenProvider.createRefreshToken();
 
-        refreshTokenStore.save(user.getId(), refreshToken, jwtTokenProvider.getRefreshTokenExpiresIn());
+        refreshTokenStore.save(user.getId(), refreshToken, jwtTokenProvider.getRefreshTokenExpire());
 
         return new AuthRecord.Token(
             accessToken,
             refreshToken,
             TOKEN_TYPE,
-            jwtTokenProvider.getAccessTokenExpiresIn(),
-            jwtTokenProvider.getRefreshTokenExpiresIn(),
+            jwtTokenProvider.getAccessTokenExpire(),
+            jwtTokenProvider.getRefreshTokenExpire(),
             user.getId(),
             user.getLoginId(),
             user.getRoleId(),
             user.getName()
         );
-    }
-}
-
-/**
- * 사용자당 최신 refresh token 1개만 유지하면 rotation과 logout을 가장 짧게 설명할 수 있다.
- */
-@Component
-@RequiredArgsConstructor
-class RefreshTokenStore {
-
-    private static final String REFRESH_TOKEN_KEY_PREFIX = "auth:refresh:";
-    private static final String USER_REFRESH_TOKEN_KEY_PREFIX = "auth:refresh:user:";
-
-    private final StringRedisTemplate stringRedisTemplate;
-
-    public void save(Long userId, String refreshToken, long ttlSeconds) {
-        String userKey = getUserKey(userId);
-        String previousToken = stringRedisTemplate.opsForValue().get(userKey);
-
-        if (StringUtils.hasText(previousToken)) {
-            stringRedisTemplate.delete(getRefreshTokenKey(previousToken));
-        }
-
-        Duration ttl = Duration.ofSeconds(ttlSeconds);
-
-        stringRedisTemplate.opsForValue().set(getRefreshTokenKey(refreshToken), userId.toString(), ttl);
-        stringRedisTemplate.opsForValue().set(userKey, refreshToken, ttl);
-    }
-
-    public Long findUserId(String refreshToken) {
-        String userId = stringRedisTemplate.opsForValue().get(getRefreshTokenKey(refreshToken));
-
-        if (!StringUtils.hasText(userId)) {
-            return null;
-        }
-
-        try {
-            return Long.parseLong(userId);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    public boolean isCurrentToken(Long userId, String refreshToken) {
-        String currentToken = stringRedisTemplate.opsForValue().get(getUserKey(userId));
-
-        return refreshToken.equals(currentToken);
-    }
-
-    public void deleteByUserId(Long userId) {
-        String userKey = getUserKey(userId);
-        String refreshToken = stringRedisTemplate.opsForValue().get(userKey);
-
-        if (StringUtils.hasText(refreshToken)) {
-            stringRedisTemplate.delete(getRefreshTokenKey(refreshToken));
-        }
-
-        stringRedisTemplate.delete(userKey);
-    }
-
-    private String getRefreshTokenKey(String refreshToken) {
-        return REFRESH_TOKEN_KEY_PREFIX + refreshToken;
-    }
-
-    private String getUserKey(Long userId) {
-        return USER_REFRESH_TOKEN_KEY_PREFIX + userId;
     }
 }

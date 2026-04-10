@@ -66,11 +66,11 @@ public class JwtTokenProvider {
                      .encodeToString(randomBytes);
     }
 
-    public long getAccessTokenExpiresIn() {
+    public long getAccessTokenExpire() {
         return accessTokenExpirationSeconds;
     }
 
-    public long getRefreshTokenExpiresIn() {
+    public long getRefreshTokenExpire() {
         return refreshTokenExpirationSeconds;
     }
 
