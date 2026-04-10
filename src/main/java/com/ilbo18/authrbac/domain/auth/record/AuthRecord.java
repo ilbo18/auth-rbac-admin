@@ -8,29 +8,34 @@ import jakarta.validation.constraints.Size;
  */
 public class AuthRecord {
 
-    /** 로그인 요청 */
     public record Login(
-        @NotBlank(message = "로그인 ID는 필수입니다.")
-        @Size(max = 50, message = "로그인 ID는 50자 이하여야 합니다.")
+        @NotBlank(message = "loginId는 필수입니다.")
+        @Size(max = 50, message = "loginId는 50자 이하여야 합니다.")
         String loginId,
 
-        @NotBlank(message = "비밀번호는 필수입니다.")
-        @Size(max = 255, message = "비밀번호는 255자 이하여야 합니다.")
+        @NotBlank(message = "password는 필수입니다.")
+        @Size(max = 255, message = "password는 255자 이하여야 합니다.")
         String password
     ) {}
 
-    /** 토큰 응답 */
+    public record Reissue(
+        @NotBlank(message = "refreshToken은 필수입니다.")
+        @Size(max = 255, message = "refreshToken은 255자 이하여야 합니다.")
+        String refreshToken
+    ) {}
+
     public record Token(
         String accessToken,
+        String refreshToken,
         String tokenType,
-        long expiresIn,
+        long accessTokenExpiresIn,
+        long refreshTokenExpiresIn,
         Long userId,
         String loginId,
         Long roleId,
         String name
     ) {}
 
-    /** 인증 사용자 응답 */
     public record Me(
         Long userId,
         String loginId,

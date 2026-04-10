@@ -15,9 +15,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * JWT 필터는 인증에 집중하고, API 인가 판단은 이 컴포넌트에서 맡는다.
- * 현재는 menu.apiPath 와 HTTP method 만으로 규칙을 설명할 수 있어
- * 복잡한 인가 프레임워크 대신 이 수준을 유지한다.
+ * login, reissue, logout은 auth API 자체의 흐름이라 permission 검사 대상에서 제외한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,6 +26,8 @@ public class ApiAuthorizationRule {
 
     private static final Set<String> EXCLUDED_API_PATHS = Set.of(
         "/api/auth/login",
+        "/api/auth/reissue",
+        "/api/auth/logout",
         "/api/auth/me",
         "/api/health"
     );

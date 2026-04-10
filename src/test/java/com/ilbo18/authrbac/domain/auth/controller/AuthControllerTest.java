@@ -10,10 +10,14 @@ import com.ilbo18.authrbac.domain.role.entity.Role;
 import com.ilbo18.authrbac.domain.role.repository.RoleRepository;
 import com.ilbo18.authrbac.domain.user.entity.User;
 import com.ilbo18.authrbac.domain.user.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,15 +26,22 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * JWT 로그인과 보호 API 인가 흐름을 함께 검증한다.
+ * JWT 로그인과 Redis refresh token 흐름, 보호 API 인가를 함께 검증한다.
  */
 @SpringBootTest(properties = "spring.sql.init.mode=never")
 @Transactional
@@ -58,6 +69,26 @@ class AuthControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @MockBean
+    private StringRedisTemplate stringRedisTemplate;
+
+    private ValueOperations<String, String> valueOperations;
+    private Map<String, String> redisValues;
+
+    @BeforeEach
+    void setUpRedisMock() {
+        redisValues = new ConcurrentHashMap<>();
+        valueOperations = mock(ValueOperations.class);
+
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenAnswer(invocation -> redisValues.get(invocation.getArgument(0)));
+        doAnswer(invocation -> {
+            redisValues.put(invocation.getArgument(0), invocation.getArgument(1));
+            return null;
+        }).when(valueOperations).set(anyString(), anyString(), any(Duration.class));
+        when(stringRedisTemplate.delete(anyString())).thenAnswer(invocation -> redisValues.remove(invocation.getArgument(0)) != null);
+    }
+
     @Test
     void 로그인에_성공한다() throws Exception {
         // given
@@ -76,7 +107,10 @@ class AuthControllerTest {
         result.andExpect(status().isOk())
               .andExpect(jsonPath("$.code").value(200))
               .andExpect(jsonPath("$.data.accessToken").isString())
+              .andExpect(jsonPath("$.data.refreshToken").isString())
               .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+              .andExpect(jsonPath("$.data.accessTokenExpiresIn").isNumber())
+              .andExpect(jsonPath("$.data.refreshTokenExpiresIn").isNumber())
               .andExpect(jsonPath("$.data.loginId").value("authadmin"))
               .andExpect(jsonPath("$.data.roleId").value(role.getId()))
               .andExpect(jsonPath("$.data.name").value("Tester"));
@@ -136,11 +170,80 @@ class AuthControllerTest {
     }
 
     @Test
+    void refreshToken으로_accessToken을_재발급한다() throws Exception {
+        // given
+        Role role = createRole("AUTH_REISSUE", "AuthReissue");
+        createUser("reissueuser", "Password1!", "Tester", role.getId(), true);
+        AuthTokens tokens = loginAndGetTokens("reissueuser", "Password1!");
+
+        // when
+        ResultActions result = mockMvc.perform(post("/api/auth/reissue")
+                                          .contentType(MediaType.APPLICATION_JSON)
+                                          .content(toJson(Map.of("refreshToken", tokens.refreshToken()))));
+
+        // then
+        result.andExpect(status().isOk())
+              .andExpect(jsonPath("$.data.accessToken").isString())
+              .andExpect(jsonPath("$.data.refreshToken").isString())
+              .andExpect(jsonPath("$.data.refreshToken").value(org.hamcrest.Matchers.not(tokens.refreshToken())));
+    }
+
+    @Test
+    void 재발급에_사용한_refreshToken은_다시_쓸_수_없다() throws Exception {
+        // given
+        Role role = createRole("AUTH_ROTATE", "AuthRotate");
+        createUser("rotateuser", "Password1!", "Tester", role.getId(), true);
+        AuthTokens tokens = loginAndGetTokens("rotateuser", "Password1!");
+        AuthTokens reissuedTokens = reissueAndGetTokens(tokens.refreshToken());
+
+        // when
+        ResultActions result = mockMvc.perform(post("/api/auth/reissue")
+                                          .contentType(MediaType.APPLICATION_JSON)
+                                          .content(toJson(Map.of("refreshToken", tokens.refreshToken()))));
+
+        // then
+        result.andExpect(status().isUnauthorized())
+              .andExpect(jsonPath("$.code").value("A3008"));
+        org.assertj.core.api.Assertions.assertThat(reissuedTokens.refreshToken()).isNotEqualTo(tokens.refreshToken());
+    }
+
+    @Test
+    void 다시_로그인하면_이전_refreshToken은_무효화된다() throws Exception {
+        // given
+        Role role = createRole("AUTH_RELOGIN", "AuthRelogin");
+        createUser("reloginuser", "Password1!", "Tester", role.getId(), true);
+        AuthTokens firstTokens = loginAndGetTokens("reloginuser", "Password1!");
+        AuthTokens secondTokens = loginAndGetTokens("reloginuser", "Password1!");
+
+        // when
+        ResultActions result = mockMvc.perform(post("/api/auth/reissue")
+                                          .contentType(MediaType.APPLICATION_JSON)
+                                          .content(toJson(Map.of("refreshToken", firstTokens.refreshToken()))));
+
+        // then
+        result.andExpect(status().isUnauthorized())
+              .andExpect(jsonPath("$.code").value("A3008"));
+        org.assertj.core.api.Assertions.assertThat(secondTokens.refreshToken()).isNotEqualTo(firstTokens.refreshToken());
+    }
+
+    @Test
+    void 잘못된_refreshToken이면_재발급에_실패한다() throws Exception {
+        // when
+        ResultActions result = mockMvc.perform(post("/api/auth/reissue")
+                                          .contentType(MediaType.APPLICATION_JSON)
+                                          .content(toJson(Map.of("refreshToken", "invalid-refresh-token"))));
+
+        // then
+        result.andExpect(status().isUnauthorized())
+              .andExpect(jsonPath("$.code").value("A3008"));
+    }
+
+    @Test
     void 유효한_토큰이_있으면_me_조회에_성공한다() throws Exception {
         // given
         Role role = createRole("AUTH_ME", "AuthMe");
         createUser("authme", "Password1!", "Tester", role.getId(), true);
-        String accessToken = loginAndGetAccessToken("authme", "Password1!");
+        String accessToken = loginAndGetTokens("authme", "Password1!").accessToken();
 
         // when
         ResultActions result = mockMvc.perform(get("/api/auth/me")
@@ -175,13 +278,44 @@ class AuthControllerTest {
     }
 
     @Test
+    void 인증된_사용자는_로그아웃할_수_있다() throws Exception {
+        // given
+        Role role = createRole("AUTH_LOGOUT", "AuthLogout");
+        createUser("logoutuser", "Password1!", "Tester", role.getId(), true);
+        AuthTokens tokens = loginAndGetTokens("logoutuser", "Password1!");
+
+        // when
+        ResultActions logoutResult = mockMvc.perform(post("/api/auth/logout")
+                                                .header(HttpHeaders.AUTHORIZATION, bearerToken(tokens.accessToken())));
+        ResultActions reissueResult = mockMvc.perform(post("/api/auth/reissue")
+                                                 .contentType(MediaType.APPLICATION_JSON)
+                                                 .content(toJson(Map.of("refreshToken", tokens.refreshToken()))));
+
+        // then
+        logoutResult.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200));
+        reissueResult.andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("A3008"));
+    }
+
+    @Test
+    void 토큰_없이_로그아웃하면_실패한다() throws Exception {
+        // when
+        ResultActions result = mockMvc.perform(post("/api/auth/logout"));
+
+        // then
+        result.andExpect(status().isUnauthorized())
+              .andExpect(jsonPath("$.code").value("A3007"));
+    }
+
+    @Test
     void 읽기_권한이_있으면_보호된_API_조회에_성공한다() throws Exception {
         // given
         Role role = createRole("AUTH_PERMISSION_ALLOW", "AuthPermissionAllow");
         createUser("permituser", "Password1!", "Tester", role.getId(), true);
         Menu userMenu = createMenu("Users", "/admin/users", "/api/users");
         createPermission(role.getId(), userMenu.getId(), true, false, false, false, true);
-        String accessToken = loginAndGetAccessToken("permituser", "Password1!");
+        String accessToken = loginAndGetTokens("permituser", "Password1!").accessToken();
 
         // when
         ResultActions result = mockMvc.perform(get("/api/users")
@@ -200,7 +334,7 @@ class AuthControllerTest {
         createMenu("Users", "/admin/users", "/api/users");
         Menu roleMenu = createMenu("Roles", "/admin/roles", "/api/roles");
         createPermission(role.getId(), roleMenu.getId(), true, false, false, false, true);
-        String accessToken = loginAndGetAccessToken("denyuser", "Password1!");
+        String accessToken = loginAndGetTokens("denyuser", "Password1!").accessToken();
 
         // when
         ResultActions result = mockMvc.perform(get("/api/users")
@@ -211,7 +345,6 @@ class AuthControllerTest {
               .andExpect(jsonPath("$.code").value("A1002"));
     }
 
-    /** 인증 흐름만 검증하려고 선행 참조 데이터는 repository.save 로 직접 준비한다. */
     private Role createRole(String code, String name) {
         return roleRepository.save(
             Role.builder()
@@ -223,7 +356,6 @@ class AuthControllerTest {
         );
     }
 
-    /** 로그인 대상만 빠르게 만들기 위해 사용자 fixture 도 repository.save 로 직접 준비한다. */
     private User createUser(String loginId, String rawPassword, String name, Long roleId, boolean enabled) {
         return userRepository.save(
             User.builder()
@@ -236,7 +368,6 @@ class AuthControllerTest {
         );
     }
 
-    /** 보호 API 인가만 검증하려고 메뉴는 routePath 와 apiPath 를 직접 저장한다. */
     private Menu createMenu(String name, String routePath, String apiPath) {
         return menuRepository.save(
             Menu.builder()
@@ -250,7 +381,6 @@ class AuthControllerTest {
         );
     }
 
-    /** CRUD 서비스까지 타면 audit 가 섞이므로 권한 fixture 는 repository.save 로 직접 준비한다. */
     private Permission createPermission(Long roleId, Long menuId, boolean canRead, boolean canCreate, boolean canUpdate, boolean canDelete, boolean enabled) {
         return permissionRepository.save(
             Permission.builder()
@@ -265,7 +395,7 @@ class AuthControllerTest {
         );
     }
 
-    private String loginAndGetAccessToken(String loginId, String password) throws Exception {
+    private AuthTokens loginAndGetTokens(String loginId, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                                       .contentType(MediaType.APPLICATION_JSON)
                                       .content(toJson(Map.of(
@@ -275,9 +405,26 @@ class AuthControllerTest {
                                   .andExpect(status().isOk())
                                   .andReturn();
 
+        return extractTokens(result);
+    }
+
+    private AuthTokens reissueAndGetTokens(String refreshToken) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/reissue")
+                                      .contentType(MediaType.APPLICATION_JSON)
+                                      .content(toJson(Map.of("refreshToken", refreshToken))))
+                                  .andExpect(status().isOk())
+                                  .andReturn();
+
+        return extractTokens(result);
+    }
+
+    private AuthTokens extractTokens(MvcResult result) throws Exception {
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
 
-        return response.path("data").path("accessToken").asText();
+        return new AuthTokens(
+            response.path("data").path("accessToken").asText(),
+            response.path("data").path("refreshToken").asText()
+        );
     }
 
     private String toJson(Object body) throws Exception {
@@ -286,5 +433,8 @@ class AuthControllerTest {
 
     private String bearerToken(String accessToken) {
         return "Bearer " + accessToken;
+    }
+
+    private record AuthTokens(String accessToken, String refreshToken) {
     }
 }

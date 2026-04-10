@@ -1,5 +1,6 @@
 @baseUrl = http://localhost:8080
 @accessToken =
+@refreshToken =
 
 ### 1. 로그인 성공
 POST {{baseUrl}}/api/auth/login
@@ -12,6 +13,7 @@ Content-Type: application/json
 
 > {%
 client.global.set("accessToken", response.body.data.accessToken);
+client.global.set("refreshToken", response.body.data.refreshToken);
 %}
 
 ### 2. 로그인 실패 - 비밀번호 불일치
@@ -23,38 +25,42 @@ Content-Type: application/json
   "password": "WrongPassword!"
 }
 
-### 3. 로그인 실패 - 존재하지 않는 loginId
-POST {{baseUrl}}/api/auth/login
+### 3. 재발급 성공
+POST {{baseUrl}}/api/auth/reissue
 Content-Type: application/json
 
 {
-  "loginId": "unknown-user",
-  "password": "Admin123!"
-}
-
-### 4. 로그인 성공 후 access token 재추출
-POST {{baseUrl}}/api/auth/login
-Content-Type: application/json
-
-{
-  "loginId": "admin",
-  "password": "Admin123!"
+  "refreshToken": "{{refreshToken}}"
 }
 
 > {%
 client.global.set("accessToken", response.body.data.accessToken);
+client.global.set("refreshToken", response.body.data.refreshToken);
 %}
 
-### 5. 내 정보 조회 성공
+### 4. 내 정보 조회 성공
 GET {{baseUrl}}/api/auth/me
 Authorization: Bearer {{accessToken}}
 Accept: application/json
 
-### 6. 토큰 없이 내 정보 조회 실패
+### 5. 로그아웃 성공
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 6. 로그아웃 후 재발급 실패
+POST {{baseUrl}}/api/auth/reissue
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### 7. 토큰 없이 내 정보 조회 실패
 GET {{baseUrl}}/api/auth/me
 Accept: application/json
 
-### 7. 잘못된 토큰으로 내 정보 조회 실패
+### 8. 잘못된 토큰으로 내 정보 조회 실패
 GET {{baseUrl}}/api/auth/me
 Authorization: Bearer invalid-token
 Accept: application/json

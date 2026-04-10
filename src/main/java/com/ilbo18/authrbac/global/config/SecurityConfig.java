@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 초기 시드 기반으로 진입점을 단순화한 보안 설정
+ * logout은 인증된 사용자 기준으로 처리해 refresh token을 body로 다시 받지 않는다.
  */
 @Configuration
 public class SecurityConfig {
@@ -40,7 +40,12 @@ public class SecurityConfig {
                 .accessDeniedHandler((request, response, ex) -> writeErrorResponse(response, objectMapper, AuthErrorCode.FORBIDDEN))
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/health", "/h2-console/**", "/api/auth/login").permitAll()
+                .requestMatchers(
+                    "/api/health",
+                    "/h2-console/**",
+                    "/api/auth/login",
+                    "/api/auth/reissue"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

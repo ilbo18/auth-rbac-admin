@@ -20,9 +20,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Set;
 
 /**
- * JWT 인증에 집중하고, 인가 규칙은 별도 컴포넌트로 위임한다.
+ * refresh token 재발급은 body 기반 흐름이라 login, reissue만 별도로 분리한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -30,9 +31,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
+    private static final Set<String> SKIP_PATHS = Set.of(
+        "/api/auth/login",
+        "/api/auth/reissue"
+    );
+
     private final JwtTokenProvider jwtTokenProvider;
     private final ApiAuthorizationRule apiAuthorizationRule;
     private final ObjectMapper objectMapper;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return SKIP_PATHS.contains(request.getRequestURI());
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)

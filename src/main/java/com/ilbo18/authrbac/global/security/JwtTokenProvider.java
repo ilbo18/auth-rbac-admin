@@ -13,14 +13,18 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 
 /**
- * JWT access token 생성과 검증을 담당한다.
+ * access token은 JWT로 유지하고, refresh token은 Redis에 저장할 랜덤 문자열로 분리한다.
  */
 @Component
 public class JwtTokenProvider {
+
+    private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${security.jwt.secret-key}")
     private String secretKeyValue;
@@ -28,15 +32,16 @@ public class JwtTokenProvider {
     @Value("${security.jwt.access-token-expiration-seconds}")
     private long accessTokenExpirationSeconds;
 
+    @Value("${security.jwt.refresh-token-expiration-seconds}")
+    private long refreshTokenExpirationSeconds;
+
     private SecretKey secretKey;
 
-    /** JWT 서명 키를 초기화한다. */
     @PostConstruct
     public void init() {
         this.secretKey = Keys.hmacShaKeyFor(secretKeyValue.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** access token을 생성한다. */
     public String createAccessToken(AuthenticatedUser authenticatedUser) {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(accessTokenExpirationSeconds);
@@ -52,12 +57,23 @@ public class JwtTokenProvider {
                    .compact();
     }
 
-    /** access token 만료 시간을 초 단위로 반환한다. */
+    public String createRefreshToken() {
+        byte[] randomBytes = new byte[32];
+        secureRandom.nextBytes(randomBytes);
+
+        return Base64.getUrlEncoder()
+                     .withoutPadding()
+                     .encodeToString(randomBytes);
+    }
+
     public long getAccessTokenExpiresIn() {
         return accessTokenExpirationSeconds;
     }
 
-    /** 토큰에서 인증 사용자 정보를 추출한다. */
+    public long getRefreshTokenExpiresIn() {
+        return refreshTokenExpirationSeconds;
+    }
+
     public AuthenticatedUser getAuthenticatedUser(String token) {
         try {
             Claims claims = Jwts.parser()
@@ -70,7 +86,9 @@ public class JwtTokenProvider {
             String loginId = claims.get("loginId", String.class);
             Long roleId = claims.get("roleId", Long.class);
 
-            if (userId == null || loginId == null || loginId.isBlank() || roleId == null) throw new CustomException(AuthErrorCode.INVALID_TOKEN);
+            if (userId == null || loginId == null || loginId.isBlank() || roleId == null) {
+                throw new CustomException(AuthErrorCode.INVALID_TOKEN);
+            }
 
             return new AuthenticatedUser(userId, loginId, roleId);
         } catch (ExpiredJwtException e) {
