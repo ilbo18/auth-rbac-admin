@@ -1,13 +1,17 @@
 package com.ilbo18.authrbac.global.security;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ilbo18.authrbac.global.enumeration.AuthErrorCode;
 import com.ilbo18.authrbac.global.exception.CustomException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -22,9 +26,14 @@ import java.util.Date;
  * access token은 JWT로 유지하고, refresh token은 Redis에 저장할 랜덤 문자열로 분리한다.
  */
 @Component
+@RequiredArgsConstructor
 public class JwtTokenProvider {
 
+    private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
+
+    @Value("${security.jwt.issuer}")
+    private String issuer;
 
     @Value("${security.jwt.secret-key}")
     private String secretKeyValue;
@@ -47,6 +56,7 @@ public class JwtTokenProvider {
         Instant expiresAt = now.plusSeconds(accessTokenExpirationSeconds);
 
         return Jwts.builder()
+                   .issuer(issuer)
                    .subject(authenticatedUser.loginId())
                    .claim("userId", authenticatedUser.userId())
                    .claim("loginId", authenticatedUser.loginId())
@@ -74,6 +84,22 @@ public class JwtTokenProvider {
         return refreshTokenExpirationSeconds;
     }
 
+    public boolean isLocalToken(String token) {
+        try {
+            String[] tokenParts = token.split("\\.");
+
+            if (tokenParts.length != 3) {
+                return false;
+            }
+
+            JsonNode payload = objectMapper.readTree(Decoders.BASE64URL.decode(tokenParts[1]));
+
+            return issuer.equals(payload.path("iss").asText());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public AuthenticatedUser getAuthenticatedUser(String token) {
         try {
             Claims claims = Jwts.parser()
@@ -85,6 +111,10 @@ public class JwtTokenProvider {
             Long userId = claims.get("userId", Long.class);
             String loginId = claims.get("loginId", String.class);
             Long roleId = claims.get("roleId", Long.class);
+
+            if (!issuer.equals(claims.getIssuer())) {
+                throw new CustomException(AuthErrorCode.INVALID_TOKEN);
+            }
 
             if (userId == null || loginId == null || loginId.isBlank() || roleId == null) {
                 throw new CustomException(AuthErrorCode.INVALID_TOKEN);

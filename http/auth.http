@@ -8,7 +8,7 @@ Content-Type: application/json
 
 {
   "loginId": "admin",
-  "password": "Admin123!"
+  "password": "admin12!@"
 }
 
 > {%

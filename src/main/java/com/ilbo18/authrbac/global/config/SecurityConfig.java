@@ -4,19 +4,32 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ilbo18.authrbac.global.enumeration.AuthErrorCode;
 import com.ilbo18.authrbac.global.exception.ErrorCode;
 import com.ilbo18.authrbac.global.response.ErrorResponseRecord;
+import com.ilbo18.authrbac.global.security.ApiAuthorizationFilter;
 import com.ilbo18.authrbac.global.security.JwtAuthenticationFilter;
+import com.ilbo18.authrbac.global.security.JwtTokenProvider;
+import com.ilbo18.authrbac.global.security.KeycloakJwtAuthenticationConverter;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtDecoders;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,8 +40,39 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 public class SecurityConfig {
 
+    @Value("${security.keycloak.enabled:false}")
+    private boolean keycloakEnabled;
+
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper) throws Exception {
+    @ConditionalOnProperty(prefix = "security.keycloak", name = "enabled", havingValue = "true")
+    public JwtDecoder jwtDecoder(@Value("${security.keycloak.issuer-uri}") String issuerUri) {
+        return JwtDecoders.fromIssuerLocation(issuerUri);
+    }
+
+    @Bean
+    public BearerTokenResolver bearerTokenResolver(JwtTokenProvider jwtTokenProvider) {
+        DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+
+        return request -> {
+            String token = delegate.resolve(request);
+
+            if (!StringUtils.hasText(token) || jwtTokenProvider.isLocalToken(token)) {
+                return null;
+            }
+
+            return token;
+        };
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(
+        HttpSecurity http,
+        JwtAuthenticationFilter jwtAuthenticationFilter,
+        ApiAuthorizationFilter apiAuthorizationFilter,
+        KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter,
+        BearerTokenResolver bearerTokenResolver,
+        ObjectMapper objectMapper
+    ) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
@@ -36,7 +80,7 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(exception -> exception
-                .authenticationEntryPoint((request, response, ex) -> writeErrorResponse(response, objectMapper, AuthErrorCode.AUTHENTICATION_REQUIRED))
+                .authenticationEntryPoint((request, response, ex) -> writeErrorResponse(response, objectMapper, resolveAuthenticationErrorCode(ex)))
                 .accessDeniedHandler((request, response, ex) -> writeErrorResponse(response, objectMapper, AuthErrorCode.FORBIDDEN))
             )
             .authorizeHttpRequests(auth -> auth
@@ -48,7 +92,15 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(apiAuthorizationFilter, AuthorizationFilter.class);
+
+        if (keycloakEnabled) {
+            http.oauth2ResourceServer(oauth2 -> oauth2
+                .bearerTokenResolver(bearerTokenResolver)
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(keycloakJwtAuthenticationConverter))
+            );
+        }
 
         return http.build();
     }
@@ -56,6 +108,24 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private AuthErrorCode resolveAuthenticationErrorCode(AuthenticationException exception) {
+        if (exception instanceof OAuth2AuthenticationException oauth2Exception) {
+            String errorCode = oauth2Exception.getError().getErrorCode();
+
+            if (AuthErrorCode.EXTERNAL_IDENTITY_NOT_LINKED.getCode().equals(errorCode)) {
+                return AuthErrorCode.EXTERNAL_IDENTITY_NOT_LINKED;
+            }
+
+            if (AuthErrorCode.DISABLED_USER.getCode().equals(errorCode)) {
+                return AuthErrorCode.DISABLED_USER;
+            }
+
+            return AuthErrorCode.INVALID_TOKEN;
+        }
+
+        return AuthErrorCode.AUTHENTICATION_REQUIRED;
     }
 
     private void writeErrorResponse(HttpServletResponse response, ObjectMapper objectMapper, ErrorCode errorCode) throws IOException {

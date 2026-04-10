@@ -29,6 +29,7 @@ public enum AuthErrorCode implements ErrorCode {
     DISABLED_USER(HttpStatus.FORBIDDEN, "A3006", "비활성화된 사용자입니다."),
     AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "A3007", "인증이 필요합니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "A3008", "유효하지 않은 refresh token입니다."),
+    EXTERNAL_IDENTITY_NOT_LINKED(HttpStatus.UNAUTHORIZED, "A3009", "연결되지 않은 외부 인증 사용자입니다."),
 
     INVALID_ROLE(HttpStatus.BAD_REQUEST, "A4001", "유효하지 않은 역할입니다."),
     ROLE_NOT_FOUND(HttpStatus.NOT_FOUND, "A4002", "역할 정보를 찾을 수 없습니다."),

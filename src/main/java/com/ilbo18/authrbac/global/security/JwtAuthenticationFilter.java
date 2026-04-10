@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -23,7 +24,7 @@ import java.util.Collections;
 import java.util.Set;
 
 /**
- * refresh token 재발급은 body 기반 흐름이라 login, reissue만 별도로 분리한다.
+ * local JWT 는 직접 처리하고, 외부 OIDC token 은 resource server 로 넘긴다.
  */
 @Component
 @RequiredArgsConstructor
@@ -36,8 +37,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         "/api/auth/reissue"
     );
 
+    @Value("${security.keycloak.enabled:false}")
+    private boolean keycloakEnabled;
+
     private final JwtTokenProvider jwtTokenProvider;
-    private final ApiAuthorizationRule apiAuthorizationRule;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -64,17 +67,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        if (!jwtTokenProvider.isLocalToken(token)) {
+            if (!keycloakEnabled) {
+                writeErrorResponse(response, AuthErrorCode.INVALID_TOKEN);
+                return;
+            }
+
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         try {
             AuthenticatedUser authenticatedUser = jwtTokenProvider.getAuthenticatedUser(token);
             UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(authenticatedUser, null, Collections.emptyList());
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-
-            if (apiAuthorizationRule.requiresAuthorization(request)) {
-                apiAuthorizationRule.validate(authenticatedUser, request);
-            }
-
             filterChain.doFilter(request, response);
         } catch (CustomException e) {
             SecurityContextHolder.clearContext();

@@ -127,7 +127,7 @@ insert into users (
 ) values (
     1,
     'admin',
-    '$2a$10$dFHk6pfjT6qLvgedafhoIufsnPGq.QaT2KYT4LsZH93ojQh6sZQ8e',
+    '$2a$10$.lJgNPlEaF/vIXa/PFZl4.Iz3KKuWK2pmnCf1UPG5/id4GT7t/flW',
     '초기 관리자',
     1,
     true,
