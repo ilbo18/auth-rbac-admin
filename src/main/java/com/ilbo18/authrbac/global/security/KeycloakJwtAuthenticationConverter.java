@@ -19,7 +19,8 @@ import java.util.Collections;
 import java.util.Optional;
 
 /**
- * 외부 token 의 role claim 을 그대로 쓰지 않고 내부 User 와 Role 로 다시 연결한다.
+ * Keycloak token 의 외부 role claim 을 그대로 신뢰하지 않고
+ * sub 를 내부 User 와 roleId 로 다시 연결해 기존 RBAC 기준을 유지한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -38,13 +39,8 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
             throw authenticationException(AuthErrorCode.INVALID_TOKEN);
         }
 
-        ExternalIdentity externalIdentity = Optional.ofNullable(
-                externalIdentityRepository.findByProviderAndProviderUserIdAndDeletedFalseAndEnabledTrue(
-                    KEYCLOAK_PROVIDER,
-                    providerUserId
-                )
-            )
-            .orElseThrow(() -> authenticationException(AuthErrorCode.EXTERNAL_IDENTITY_NOT_LINKED));
+        ExternalIdentity externalIdentity = Optional.ofNullable(externalIdentityRepository.findByProviderAndProviderUserIdAndDeletedFalseAndEnabledTrue(KEYCLOAK_PROVIDER, providerUserId))
+                                                    .orElseThrow(() -> authenticationException(AuthErrorCode.EXTERNAL_IDENTITY_NOT_LINKED));
 
         User user = Optional.ofNullable(userRepository.findByIdAndDeletedFalse(externalIdentity.getUserId()))
                             .orElseThrow(() -> authenticationException(AuthErrorCode.EXTERNAL_IDENTITY_NOT_LINKED));

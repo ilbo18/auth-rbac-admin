@@ -24,7 +24,8 @@ import java.util.Collections;
 import java.util.Set;
 
 /**
- * local JWT 는 직접 처리하고, 외부 OIDC token 은 resource server 로 넘긴다.
+ * local mode 에서만 앱이 직접 발급한 JWT 를 처리한다.
+ * keycloak mode 에서는 이 필터가 인증을 맡지 않고 resource server 쪽으로 흐름을 넘긴다.
  */
 @Component
 @RequiredArgsConstructor
@@ -80,8 +81,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             AuthenticatedUser authenticatedUser = jwtTokenProvider.getAuthenticatedUser(token);
-            UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(authenticatedUser, null, Collections.emptyList());
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(authenticatedUser, null, Collections.emptyList());
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
             filterChain.doFilter(request, response);

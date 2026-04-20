@@ -19,7 +19,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 인증 수단과 무관하게 내부 principal 이 같으면 permission 검사는 하나로 유지한다.
+ * local JWT 든 Keycloak JWT 든 최종 principal 이 같으면
+ * RBAC 검사는 하나의 필터로 유지하는 편이 구조가 덜 흔들린다.
  */
 @Component
 @RequiredArgsConstructor
