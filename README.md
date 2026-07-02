@@ -1,6 +1,6 @@
 # auth-rbac-admin
 
-`auth-rbac-admin`은 Spring Boot 기반 관리자 백엔드 포트폴리오 프로젝트입니다.  
+`auth-rbac-admin`은 Spring Boot 기반 관리자 백엔드 프로젝트입니다.  
 main 브랜치 하나에서 인증 모드만 전환하고, 그 이후의 RBAC와 audit 구조는 공통으로 재사용하는 형태로 마무리했습니다.
 
 ## 1. 프로젝트 소개
@@ -13,7 +13,7 @@ main 브랜치 하나에서 인증 모드만 전환하고, 그 이후의 RBAC와
 - 요청 경로와 HTTP Method 기반의 실제 API 인가
 - 관리자 작업 이력을 남기는 Audit 로그
 - Keycloak 기반 OIDC / SSO access token 수용
-- 테스트 코드까지 포함한 실무형 백엔드 포트폴리오
+- 테스트 코드까지 포함한 실무형 백엔드 프로젝트
 
 ## 2. 기술 스택
 
